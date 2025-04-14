@@ -18,26 +18,46 @@ export default function LocationInput() {
 
   // Initialize Google Places Autocomplete
   useEffect(() => {
+    console.log('LocationInput: Autocomplete useEffect triggered');
+    
     if (inputRef.current) {
-      initAutocomplete(inputRef.current, (place) => {
+      console.log('LocationInput: Input ref is available, initializing autocomplete');
+      const autocomplete = initAutocomplete(inputRef.current, (place) => {
+        console.log('LocationInput: Place selected:', place);
         if (place.geometry?.location) {
+          console.log('LocationInput: Setting location with coordinates:', {
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng()
+          });
           setLocation({
             address: place.formatted_address || place.name || "",
             lat: place.geometry.location.lat(),
             lng: place.geometry.location.lng(),
           });
+        } else {
+          console.warn('LocationInput: Selected place has no geometry data');
         }
       });
+      
+      console.log('LocationInput: Autocomplete initialization result:', !!autocomplete);
+    } else {
+      console.warn('LocationInput: Input ref is not available');
     }
   }, [initAutocomplete, setLocation]);
 
   // Initialize map with default location if user has preferences
   useEffect(() => {
+    console.log('LocationInput: Map useEffect triggered, userPreferences:', userPreferences);
+    
     if (mapContainerRef.current && userPreferences?.defaultLocation) {
-      showMap(mapContainerRef.current, {
+      console.log('LocationInput: Showing map with default location:', userPreferences.defaultLocation);
+      const map = showMap(mapContainerRef.current, {
         lat: userPreferences.defaultLocation.lat || 0,
         lng: userPreferences.defaultLocation.lng || 0
       });
+      console.log('LocationInput: Map initialization result:', !!map);
+    } else {
+      console.log('LocationInput: Map container ref or default location not available');
     }
   }, [userPreferences, showMap]);
 
@@ -54,12 +74,20 @@ export default function LocationInput() {
               placeholder="Enter workplace address or postcode"
               defaultValue={location.address}
             />
+
+      {/* <gmpx-api-loader key="YOUR_API_KEY_HERE" solution-channel="GMP_GE_placepicker_v2">
+       </gmpx-api-loader>
+      <div id="place-picker-box">
+        <div id="place-picker-container">
+          <gmpx-place-picker placeholder="Enter an address"></gmpx-place-picker>
+        </div>
+      </div> */}
           </div>
         </CardContent>
-        <div 
-          ref={mapContainerRef} 
+        <div
+          ref={mapContainerRef}
           className="h-48 bg-gray-100 relative"
-          style={{ backgroundImage: 'url("https://maps.googleapis.com/maps/api/staticmap?center=51.505,-0.09&zoom=13&size=600x200&key=YOUR_API_KEY")' }}
+          style={{ backgroundImage: `url("https://maps.googleapis.com/maps/api/staticmap?center=51.505,-0.09&zoom=13&size=600x200&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}")` }}
         >
           <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
             <Button variant="default" className="bg-white text-gray-800 hover:bg-gray-100">
