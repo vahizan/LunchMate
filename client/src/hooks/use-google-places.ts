@@ -52,10 +52,6 @@ export function useGooglePlaces() {
         console.error('Error loading Google Maps API:', err);
         setError(err);
       });
-    
-    return () => {
-      // Cleanup if needed
-    };
   }, []);
 
   // Initialize Places Autocomplete on an input element
@@ -68,7 +64,6 @@ export function useGooglePlaces() {
     }
 
     try {
-      console.log('Creating Autocomplete instance');
       const autocomplete = new window.google.maps.places.PlaceAutocompleteElement(inputElement, {
         types: ['geocode', 'establishment'],
         fields: ['formatted_address', 'geometry', 'name'],
