@@ -1,13 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 
-// Type declarations for Google Maps API
-declare global {
-  interface Window {
-    google: any;
-    initGoogleMapsCallback: () => void;
-  }
-}
-
 // Maps API Loader
 let googleMapsPromise: Promise<void> | null = null;
 
@@ -16,7 +8,7 @@ function loadGoogleMapsApi(): Promise<void> {
   if (googleMapsPromise) return googleMapsPromise;
 
   googleMapsPromise = new Promise((resolve) => {
-    const apiKey = import.meta.env.GOOGLE_MAPS_API_KEY;
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
     
     // Define the callback function
     window.initGoogleMapsCallback = function() {
@@ -40,8 +32,7 @@ export function useGooglePlaces() {
   // Load Google Maps API
   useEffect(() => {
     console.log('Loading Google Maps API...');
-    const apiKey = import.meta.env.GOOGLE_MAPS_API_KEY;
-    console.log('API Key available:', !!apiKey);
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
     
     loadGoogleMapsApi()
       .then(() => {

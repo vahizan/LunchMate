@@ -19,7 +19,8 @@ export default function LocationInput() {
   // Initialize Google Places Autocomplete
   useEffect(() => {
     console.log('LocationInput: Autocomplete useEffect triggered');
-    
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
     if (inputRef.current) {
       console.log('LocationInput: Input ref is available, initializing autocomplete');
       const autocomplete = initAutocomplete(inputRef.current, (place) => {
