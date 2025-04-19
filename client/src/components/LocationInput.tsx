@@ -22,6 +22,7 @@ export default function LocationInput() {
 
   return (
     <div className="mb-6">
+      {/* Location Card */}
       <Card className="overflow-hidden">
         <CardContent className="p-4 pt-4">
           <h2 className="text-lg font-semibold mb-3">Your Location</h2>

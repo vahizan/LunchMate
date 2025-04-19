@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useGooglePlaces } from "@/hooks/use-google-places";
+import { usePlaces } from "@/hooks/use-places";
 import { Location } from "@/types";
 
 interface LocationInputFieldProps {
@@ -14,36 +14,38 @@ interface LocationInputFieldProps {
 export function LocationInputField({ onLocationSelected }: LocationInputFieldProps) {
   const { location, setLocation } = useContext(AppContext);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { initAutocomplete, isLoaded, error } = useGooglePlaces();
+  const { initAutocomplete, isLoaded, error, providerType } = usePlaces();
   const [autocompleteError, setAutocompleteError] = useState<string | null>(null);
 
   // Initialize Google Places Autocomplete
   useEffect(() => {
-    console.log('LocationInputField: Autocomplete useEffect triggered');
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    console.log(`LocationInputField: Autocomplete useEffect triggered (using ${providerType} provider)`);
+    const apiKey = providerType === 'google'
+      ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+      : import.meta.env.VITE_FOURSQUARE_PLACES_API_KEY;
     
     // Clear any previous errors
     setAutocompleteError(null);
     
     if (!apiKey) {
-      console.error('LocationInputField: Google Maps API key is missing');
-      setAutocompleteError('Google Maps API key is missing. Please check your environment configuration.');
+      console.error(`LocationInputField: ${providerType} API key is missing`);
+      setAutocompleteError(`${providerType.charAt(0).toUpperCase() + providerType.slice(1)} API key is missing. Please check your environment configuration.`);
       return;
     }
 
     if (!isLoaded) {
-      console.log('LocationInputField: Google Maps API not loaded yet, waiting...');
+      console.log(`LocationInputField: ${providerType} API not loaded yet, waiting...`);
       return;
     }
     
     if (error) {
-      console.error('LocationInputField: Google Maps API loading error:', error);
-      setAutocompleteError(`Failed to load Google Maps: ${error.message}`);
+      console.error(`LocationInputField: ${providerType} API loading error:`, error);
+      setAutocompleteError(`Failed to load ${providerType} API: ${error.message}`);
       return;
     }
 
     if (inputRef.current) {
-      console.log('LocationInputField: Input ref is available, initializing autocomplete');
+      console.log(`LocationInputField: Input ref is available, initializing ${providerType} autocomplete`);
       try {
         const autocomplete = initAutocomplete(inputRef.current, (place) => {
           console.log('LocationInputField: Place selected:', place);
@@ -82,7 +84,7 @@ export function LocationInputField({ onLocationSelected }: LocationInputFieldPro
       console.warn('LocationInputField: Input ref is not available');
       setAutocompleteError('Input field not available. Please try again later.');
     }
-  }, [initAutocomplete, setLocation, isLoaded, error, onLocationSelected]);
+  }, [initAutocomplete, setLocation, isLoaded, error, onLocationSelected, providerType]);
 
   return (
     <>

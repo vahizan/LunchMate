@@ -6,19 +6,27 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { usePlaces } from "@/hooks/use-places";
+import { Team } from "@/types";
 
 interface TeamModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+interface TeamQueryResult {
+  id: string;
+  [key: string]: any;
+}
+
 export function TeamModal({ isOpen, onClose }: TeamModalProps) {
   const { toast } = useToast();
   const { restaurants } = useContext(AppContext);
   const [teamLink, setTeamLink] = useState("");
+  const { getPhotoUrl } = usePlaces();
 
   // Fetch team data
-  const { data: team, isLoading } = useQuery({
+  const { data: team, isLoading } = useQuery<TeamQueryResult>({
     queryKey: ['/api/team'],
     enabled: isOpen,
   });
@@ -39,7 +47,8 @@ export function TeamModal({ isOpen, onClose }: TeamModalProps) {
   useEffect(() => {
     if (isOpen) {
       const host = window.location.host;
-      const teamId = team?.id || "tech-team";
+      // Use a default team ID if team data is not available
+      const teamId = team && 'id' in team ? team.id : "tech-team";
       setTeamLink(`${window.location.protocol}//${host}/team/${teamId}`);
     }
   }, [isOpen, team]);
@@ -62,7 +71,7 @@ export function TeamModal({ isOpen, onClose }: TeamModalProps) {
   const finalizeChoice = () => {
     // Logic to finalize team choice
     toast({
-      title: "Team choice finalized",
+      title: "Team choice finalised",
       description: "Everyone has been notified of the final selection",
     });
     onClose();
@@ -110,9 +119,9 @@ export function TeamModal({ isOpen, onClose }: TeamModalProps) {
                 <div key={restaurant.place_id} className="p-3 flex justify-between items-center">
                   <div className="flex items-center">
                     {restaurant.photos && restaurant.photos[0] ? (
-                      <img 
-                        src={`https://maps.googleapis.com/maps/api/place/photo?maxwidth=64&photoreference=${restaurant.photos[0].photo_reference}&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`} 
-                        alt={restaurant.name} 
+                      <img
+                        src={getPhotoUrl(restaurant.photos[0].photo_reference, 64)}
+                        alt={restaurant.name}
                         className="w-10 h-10 rounded-md object-cover mr-3"
                       />
                     ) : (
@@ -148,7 +157,7 @@ export function TeamModal({ isOpen, onClose }: TeamModalProps) {
               Add restaurant
             </Button>
             <Button onClick={finalizeChoice} className="flex-1">
-              Finalize choice
+              Finalise choice
             </Button>
           </DialogFooter>
         </div>
