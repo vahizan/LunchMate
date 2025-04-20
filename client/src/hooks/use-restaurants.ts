@@ -13,6 +13,45 @@ export function useRestaurants() {
   // Query to get restaurants based on location and filters
   const query = useQuery({
     queryKey: ['/api/restaurants', location, filters],
+    queryFn: async () => {
+      // Only fetch if we have a valid location
+      if (!location.lat || !location.lng) return [];
+      
+      // Build query parameters
+      const params = new URLSearchParams({
+        lat: location.lat.toString(),
+        lng: location.lng.toString(),
+        radius: filters.radius.toString()
+      });
+      
+      // Add cuisine filters if any
+      if (filters.cuisines.length > 0) {
+        filters.cuisines.forEach(cuisine => {
+          params.append('cuisines', cuisine);
+        });
+      }
+      
+      // Add dietary filters if any
+      if (filters.dietary.length > 0) {
+        filters.dietary.forEach(diet => {
+          params.append('dietary', diet);
+        });
+      }
+      
+      // Add price level filter if set
+      if (filters.priceLevel) {
+        params.append('priceLevel', filters.priceLevel.toString());
+      }
+      
+      // Make the request
+      const response = await fetch(`/api/restaurants?${params.toString()}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch restaurants');
+      }
+      
+      return response.json();
+    },
     enabled: Boolean(location.lat && location.lng),
   });
 

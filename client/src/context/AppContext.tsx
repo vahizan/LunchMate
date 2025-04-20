@@ -4,7 +4,7 @@ import { Restaurant, Location, Filters, UserPreferences, VisitHistoryItem } from
 
 // Default values
 const DEFAULT_FILTERS: Filters = {
-  radius: 1,
+  radius: [0.5],
   cuisines: [],
   dietary: [],
   priceLevel: 2,
@@ -135,6 +135,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, [visitHistory]);
   
   useEffect(() => {
+    console.log("SAVE FILTERS", filters);
     localStorage.setItem('filters', JSON.stringify(filters));
   }, [filters]);
   

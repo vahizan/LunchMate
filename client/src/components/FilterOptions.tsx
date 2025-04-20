@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { AppContext } from "@/context/AppContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,39 +16,67 @@ const DIETARY_RESTRICTIONS = [
   "Vegetarian", "Vegan", "Gluten-free", "Halal", "Kosher", "Dairy-free", "Nut-free"
 ];
 
-export default function FilterOptions() {
-  const { 
-    filters, 
+export const FilterOptions = () => {
+  const {
+    filters,
     setFilters,
     resetFilters
   } = useContext(AppContext);
 
+  // Local state for each filter option
+  const [currentRadius, setCurrentRadius] = useState<number[]>();
+  const [currentCuisines, setCurrentCuisines] = useState<string[]>();
+  const [currentDietary, setCurrentDietary] = useState<string[]>();
+  const [currentPriceLevel, setCurrentPriceLevel] = useState<number>();
+  const [currentHistoryDays, setCurrentHistoryDays] = useState<number>();
+
+  // Initialize local state from filters
+  useEffect(() => {
+    setCurrentRadius(filters.radius);
+    setCurrentCuisines(filters.cuisines);
+    setCurrentDietary(filters.dietary);
+    setCurrentPriceLevel(filters.priceLevel);
+    setCurrentHistoryDays(filters.historyDays);
+  }, [filters]);
+
+  // Generic function to toggle array items (for cuisines and dietary restrictions)
+  const toggleArrayItem = <T,>(
+    currentItems: T[] | undefined,
+    setCurrentItems: React.Dispatch<React.SetStateAction<T[] | undefined>>,
+    item: T,
+    filterKey: 'cuisines' | 'dietary'
+  ) => {
+    const updatedItems = currentItems?.includes(item)
+      ? currentItems.filter(i => i !== item)
+      : [...(currentItems || []), item];
+    
+    setCurrentItems(updatedItems);
+    setFilters({ ...filters, [filterKey]: updatedItems });
+  };
+
+  // Handlers for each filter option
   const handleRadiusChange = (value: number[]) => {
-    setFilters({ ...filters, radius: value[0] });
+    setCurrentRadius(value);
+    setFilters({ ...filters, radius: value });
   };
 
   const toggleCuisine = (cuisine: string) => {
-    const updatedCuisines = filters.cuisines.includes(cuisine)
-      ? filters.cuisines.filter(c => c !== cuisine)
-      : [...filters.cuisines, cuisine];
-    
-    setFilters({ ...filters, cuisines: updatedCuisines });
+    toggleArrayItem(currentCuisines, setCurrentCuisines, cuisine, 'cuisines');
   };
 
   const toggleDietary = (dietary: string) => {
-    const updatedDietary = filters.dietary.includes(dietary)
-      ? filters.dietary.filter(d => d !== dietary)
-      : [...filters.dietary, dietary];
-    
-    setFilters({ ...filters, dietary: updatedDietary });
+    toggleArrayItem(currentDietary, setCurrentDietary, dietary, 'dietary');
   };
 
   const setPriceLevel = (price: number) => {
+    setCurrentPriceLevel(price);
     setFilters({ ...filters, priceLevel: price });
   };
 
   const handleHistoryDaysChange = (value: string) => {
-    setFilters({ ...filters, historyDays: parseInt(value) });
+    const days = parseInt(value);
+    setCurrentHistoryDays(days);
+    setFilters({ ...filters, historyDays: days });
   };
 
   return (
@@ -57,18 +85,27 @@ export default function FilterOptions() {
         <CardContent className="p-4 pt-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Filters</h2>
-            <Button variant="ghost" className="text-primary h-auto p-0 text-sm" onClick={resetFilters}>
+            <Button variant="ghost" className="text-primary h-auto p-0 text-sm" onClick={() => {
+              setCurrentCuisines([]);
+              setCurrentDietary([]);
+              setPriceLevel(1);
+              setCurrentRadius([0.2]);
+              setCurrentHistoryDays(14);
+              resetFilters();
+            }}>
               Reset all
             </Button>
           </div>
 
           {/* Search Radius */}
           <div className="mb-6">
-            <Label className="block text-sm font-medium text-gray-500 mb-2">
-              Search radius: <span className="text-gray-800 font-semibold">{filters.radius.toFixed(1)} km</span>
-            </Label>
+            {currentRadius && <Label htmlFor="radius-slider" className="block text-sm font-medium text-gray-500 mb-2">
+              Search radius: <span className="text-gray-800 font-semibold">{currentRadius[0]} km</span>
+            </Label>}
             <Slider
-              value={[filters.radius]}
+              name="radius-slider"
+              defaultValue={!!filters.radius.length ? filters.radius : [0.2]}
+              value={currentRadius}
               min={0.2}
               max={5}
               step={0.1}
@@ -76,8 +113,8 @@ export default function FilterOptions() {
               className="w-full"
             />
             <div className="flex justify-between text-xs text-gray-500 mt-1">
-              <span>0.2 km</span>
-              <span>5 km</span>
+              <span>0.2 km (Min)</span>
+              <span>5 km (Max)</span>
             </div>
           </div>
 
@@ -93,8 +130,8 @@ export default function FilterOptions() {
                   variant="outline"
                   className={cn(
                     "px-3 py-1 h-auto rounded-full text-sm font-medium transition-all",
-                    filters.cuisines.includes(cuisine) 
-                      ? "bg-primary text-white border-primary hover:bg-primary/90 hover:text-white" 
+                    currentCuisines?.includes(cuisine)
+                      ? "bg-primary text-white border-primary hover:bg-primary/90 hover:text-white"
                       : "bg-gray-100 text-gray-800 hover:bg-gray-200"
                   )}
                   onClick={() => toggleCuisine(cuisine)}
@@ -117,8 +154,8 @@ export default function FilterOptions() {
                   variant="outline"
                   className={cn(
                     "px-3 py-1 h-auto rounded-full text-sm font-medium transition-all",
-                    filters.dietary.includes(dietary) 
-                      ? "bg-primary text-white border-primary hover:bg-primary/90 hover:text-white" 
+                    currentDietary?.includes(dietary)
+                      ? "bg-primary text-white border-primary hover:bg-primary/90 hover:text-white"
                       : "bg-gray-100 text-gray-800 hover:bg-gray-200"
                   )}
                   onClick={() => toggleDietary(dietary)}
@@ -141,8 +178,8 @@ export default function FilterOptions() {
                   variant="outline"
                   className={cn(
                     "flex-1 py-2",
-                    filters.priceLevel === price 
-                      ? "bg-primary text-white border-primary" 
+                    currentPriceLevel === price
+                      ? "bg-primary text-white border-primary"
                       : "border-gray-200 hover:bg-gray-100"
                   )}
                   onClick={() => setPriceLevel(price)}
@@ -158,8 +195,8 @@ export default function FilterOptions() {
             <Label className="block text-sm font-medium text-gray-500 mb-2">
               Avoid places visited in the last
             </Label>
-            <Select 
-              value={filters.historyDays.toString()} 
+            <Select
+              value={currentHistoryDays?.toString()}
               onValueChange={handleHistoryDaysChange}
             >
               <SelectTrigger className="w-full">
@@ -178,3 +215,5 @@ export default function FilterOptions() {
     </div>
   );
 }
+
+export default FilterOptions;

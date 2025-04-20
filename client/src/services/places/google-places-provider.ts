@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
+import { PlacesProvider, PlaceResult } from './types';
 
 // Maps API Loader
 let googleMapsPromise: Promise<void> | null = null;
-
 
 function loadGoogleMapsApi(): Promise<void> {
   if (googleMapsPromise) {
@@ -54,18 +54,22 @@ function loadGoogleMapsApi(): Promise<void> {
   return googleMapsPromise;
 }
 
-export function useGooglePlaces() {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
+export class GooglePlacesProvider implements PlacesProvider {
+  isLoaded: boolean = false;
+  error: Error | null = null;
 
-  // Load Google Maps API
-  useEffect(() => {
+  constructor() {
+    // Load Google Maps API
+    this.loadApi();
+  }
+
+  private loadApi(): void {
     console.log('Loading Google Maps API...');
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
     
     if (!apiKey) {
       console.error('Google Maps API key is missing. Check your .env file.');
-      setError(new Error('Google Maps API key is missing'));
+      this.error = new Error('Google Maps API key is missing');
       return;
     }
     
@@ -74,24 +78,23 @@ export function useGooglePlaces() {
     loadGoogleMapsApi()
       .then(() => {
         console.log('Google Maps API loaded successfully');
-        setIsLoaded(true);
+        this.isLoaded = true;
       })
       .catch((err) => {
         console.error('Error loading Google Maps API:', err);
-        setError(err);
+        this.error = err;
       });
-  }, []);
+  }
 
-  // Initialize Places Autocomplete on an input element
-  const initAutocomplete = useCallback((inputElement: HTMLInputElement, onPlaceSelected: (place: any) => void) => {
-    console.log('initAutocomplete called, isLoaded:', isLoaded, 'window.google available:', !!window.google);
+  initAutocomplete(inputElement: HTMLInputElement, onPlaceSelected: (place: PlaceResult) => void): any {
+    console.log('initAutocomplete called, isLoaded:', this.isLoaded, 'window.google available:', !!window.google);
     
     if (!inputElement) {
       console.error('Cannot initialize autocomplete: Input element is null or undefined');
       return null;
     }
     
-    if (!isLoaded) {
+    if (!this.isLoaded) {
       console.warn('Cannot initialize autocomplete: Google Maps not loaded yet');
       return null;
     }
@@ -130,14 +133,13 @@ export function useGooglePlaces() {
       return autocomplete;
     } catch (error) {
       console.error('Error initializing autocomplete:', error);
-      setError(error instanceof Error ? error : new Error('Failed to initialize autocomplete'));
+      this.error = error instanceof Error ? error : new Error('Failed to initialize autocomplete');
       return null;
     }
-  }, [isLoaded]);
+  }
 
-  // Show a map in a container
-  const showMap = useCallback((container: HTMLElement, location: { lat: number, lng: number }) => {
-    if (!isLoaded || !window.google) return;
+  showMap(container: HTMLElement, location: { lat: number, lng: number }): any {
+    if (!this.isLoaded || !window.google) return null;
 
     const map = new window.google.maps.Map(container, {
       center: location,
@@ -150,11 +152,10 @@ export function useGooglePlaces() {
     });
 
     return map;
-  }, [isLoaded]);
+  }
 
-  // Get geocode from address
-  const geocodeAddress = useCallback(async (address: string): Promise<{ lat: number, lng: number } | null> => {
-    if (!isLoaded || !window.google) return null;
+  async geocodeAddress(address: string): Promise<{ lat: number, lng: number } | null> {
+    if (!this.isLoaded || !window.google) return null;
 
     const geocoder = new window.google.maps.Geocoder();
     
@@ -180,11 +181,10 @@ export function useGooglePlaces() {
       console.error('Geocoding error:', err);
       return null;
     }
-  }, [isLoaded]);
+  }
 
-  // Initialize a map in a container element
-  const initMap = useCallback((container: HTMLElement, options?: any) => {
-    if (!isLoaded || !window.google) return null;
+  initMap(container: HTMLElement, options?: any): any {
+    if (!this.isLoaded || !window.google) return null;
     
     const mapOptions = {
       center: { lat: 40.7128, lng: -74.0060 }, // Default to New York
@@ -194,14 +194,10 @@ export function useGooglePlaces() {
     };
     
     return new window.google.maps.Map(container, mapOptions);
-  }, [isLoaded]);
+  }
 
-  return {
-    isLoaded,
-    error,
-    initAutocomplete,
-    showMap,
-    geocodeAddress,
-    initMap
-  };
+  getPhotoUrl(photoReference: string, maxWidth: number): string {
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${maxWidth}&photoreference=${photoReference}&key=${apiKey}`;
+  }
 }
