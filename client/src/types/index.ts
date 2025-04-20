@@ -7,7 +7,7 @@ export interface Location {
 
 // Filters for restaurant search
 export interface Filters {
-  radius: number;
+  radius: number[];
   cuisines: string[];
   dietary: string[];
   priceLevel: number;

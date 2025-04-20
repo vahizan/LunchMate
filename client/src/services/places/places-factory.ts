@@ -8,7 +8,7 @@ import { FoursquareProvider } from './foursquare-places-provider';
 export class PlacesFactory {
   private static instance: PlacesFactory;
   private providers: Map<PlacesProviderType, PlacesProvider> = new Map();
-  private activeProvider: PlacesProviderType = 'google'; // Default provider
+  private activeProvider: PlacesProviderType = 'foursquare'; // Default provider
 
   /**
    * Private constructor to enforce singleton pattern

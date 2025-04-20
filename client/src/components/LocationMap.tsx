@@ -10,7 +10,7 @@ interface LocationMapProps {
   onMapClick?: () => void;
 }
 
-export function LocationMap({ location, onMapClick }: LocationMapProps) {
+export const LocationMap = ({ location, onMapClick }: LocationMapProps) => {
   const { userPreferences } = useContext(AppContext);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const { showMap, providerType } = usePlaces();
@@ -43,14 +43,28 @@ export function LocationMap({ location, onMapClick }: LocationMapProps) {
   const lat = mapLocation?.lat || 0;
   const lng = mapLocation?.lng || 0;
   
+  // Get static map URL based on provider
+  const getStaticMapUrl = () => {
+    if (!mapLocation?.lat || !mapLocation?.lng) return undefined;
+    
+    if (providerType === 'google' && apiKey) {
+      // Google Maps static API
+      return `url("https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=13&size=600x200&key=${apiKey}")`;
+    } else {
+      // OpenStreetMap for Foursquare (doesn't require API key)
+      return `url("https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=14&size=600x200&markers=${lat},${lng},red")`;
+    }
+  };
+  
   return (
     <div
+      id="map"
       ref={mapContainerRef}
       className="h-48 bg-gray-100 relative"
       style={{
-        backgroundImage: apiKey && providerType === 'google' ?
-          `url("https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=13&size=600x200&key=${apiKey}")` :
-          undefined
+        backgroundImage: getStaticMapUrl(),
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
       }}
     >
       <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
@@ -66,3 +80,6 @@ export function LocationMap({ location, onMapClick }: LocationMapProps) {
     </div>
   );
 }
+
+
+export default LocationMap;

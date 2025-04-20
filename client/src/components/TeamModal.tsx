@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { usePlaces } from "@/hooks/use-places";
-import { Team } from "@/types";
 
 interface TeamModalProps {
   isOpen: boolean;

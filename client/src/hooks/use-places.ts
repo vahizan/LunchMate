@@ -9,7 +9,7 @@ import { PlacesProvider, PlacesProviderType, PlaceResult } from '@/services/plac
 export function usePlaces() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [providerType, setProviderType] = useState<PlacesProviderType>('google');
+  const [providerType, setProviderType] = useState<PlacesProviderType>('foursquare');
   
   // Get the provider instance
   const getProvider = useCallback((): PlacesProvider => {
