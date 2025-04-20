@@ -1,21 +1,47 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useContext, useEffect, useState } from 'react';
-import { AppContext } from '@/context/AppContext';
+import { useEffect, useState } from 'react';
+import { useAppContext } from '@/context/AppContext';
 import { Restaurant } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 
 export function useRestaurants() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { location, filters, visitHistory } = useContext(AppContext);
+  const { location, filters, visitHistory } = useAppContext();
   const [highlightedRestaurant, setHighlightedRestaurant] = useState<string | null>(null);
+  
+  // Create a stable query key that will change when location or filters change
+  // Add a timestamp to ensure the query key changes when filters change
+  const timestamp = Date.now();
+  
+  // Create a stringified query key to ensure it changes when location or filters change
+  const queryKeyString = JSON.stringify({
+    endpoint: '/api/restaurants',
+    timestamp: timestamp,
+    location: location ? { lat: location.lat, lng: location.lng } : null,
+    filters: filters ? {
+      radius: filters.radius,
+      cuisines: filters.cuisines,
+      dietary: filters.dietary,
+      priceLevel: filters.priceLevel,
+      historyDays: filters.historyDays
+    } : null
+  });
+  
+  console.log("useRestaurants - queryKeyString:", queryKeyString);
   
   // Query to get restaurants based on location and filters
   const query = useQuery({
-    queryKey: ['/api/restaurants', location, filters],
+    queryKey: [queryKeyString],
     queryFn: async () => {
+      console.log("useRestaurants - queryFn called with location:", location);
+      console.log("useRestaurants - queryFn called with filters:", filters);
+      
       // Only fetch if we have a valid location
-      if (!location.lat || !location.lng) return [];
+      if (!location?.lat || !location?.lng) {
+        console.log("useRestaurants - invalid location, returning empty array");
+        return [];
+      }
       
       // Build query parameters
       const params = new URLSearchParams({
@@ -52,8 +78,16 @@ export function useRestaurants() {
       
       return response.json();
     },
-    enabled: Boolean(location.lat && location.lng),
+    enabled: Boolean(location?.lat && location?.lng),
   });
+  
+  // Force refetch when location or filters change
+  useEffect(() => {
+    if (location?.lat && location?.lng) {
+      console.log("useRestaurants - location or filters changed, forcing refetch");
+      query.refetch();
+    }
+  }, [location, JSON.stringify(filters), query]);
 
   const restaurants = query.data as Restaurant[];
 

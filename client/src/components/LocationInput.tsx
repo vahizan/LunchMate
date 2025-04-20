@@ -1,17 +1,15 @@
-import { useContext, useState } from "react";
-import { AppContext } from "@/context/AppContext";
+import { useAppContext } from "@/context/AppContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { LocationInputField } from "./LocationInputField";
 import { LocationMap } from "./LocationMap";
 import { Location } from "@/types";
 
 export default function LocationInput() {
-  const { location } = useContext(AppContext);
-  const [currentLocation, setCurrentLocation] = useState<Location | undefined>(location);
+  const { location, setLocation } = useAppContext();
 
   // Handle location selection from the input field
   const handleLocationSelected = (newLocation: Location) => {
-    setCurrentLocation(newLocation);
+    setLocation(newLocation);
   };
 
   // Handle map click (could be used to open a modal with a larger map)
@@ -30,7 +28,7 @@ export default function LocationInput() {
         </CardContent>
         
         <LocationMap
-          location={currentLocation}
+          location={location}
           onMapClick={handleMapClick}
         />
       </Card>

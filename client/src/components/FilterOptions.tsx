@@ -51,13 +51,27 @@ export const FilterOptions = () => {
       : [...(currentItems || []), item];
     
     setCurrentItems(updatedItems);
-    setFilters({ ...filters, [filterKey]: updatedItems });
+    
+    // Create a completely new object to ensure reference changes
+    const newFilters = {
+      ...filters,
+      [filterKey]: [...updatedItems]
+    };
+    console.log("FilterOptions - toggleArrayItem - updating filters:", newFilters);
+    setFilters(newFilters);
   };
 
   // Handlers for each filter option
   const handleRadiusChange = (value: number[]) => {
     setCurrentRadius(value);
-    setFilters({ ...filters, radius: value });
+    
+    // Create a completely new object to ensure reference changes
+    const newFilters = {
+      ...filters,
+      radius: [...value]
+    };
+    console.log("FilterOptions - handleRadiusChange - updating filters:", newFilters);
+    setFilters(newFilters);
   };
 
   const toggleCuisine = (cuisine: string) => {
@@ -70,13 +84,27 @@ export const FilterOptions = () => {
 
   const setPriceLevel = (price: number) => {
     setCurrentPriceLevel(price);
-    setFilters({ ...filters, priceLevel: price });
+    
+    // Create a completely new object to ensure reference changes
+    const newFilters = {
+      ...filters,
+      priceLevel: price
+    };
+    console.log("FilterOptions - setPriceLevel - updating filters:", newFilters);
+    setFilters(newFilters);
   };
 
   const handleHistoryDaysChange = (value: string) => {
     const days = parseInt(value);
     setCurrentHistoryDays(days);
-    setFilters({ ...filters, historyDays: days });
+    
+    // Create a completely new object to ensure reference changes
+    const newFilters = {
+      ...filters,
+      historyDays: days
+    };
+    console.log("FilterOptions - handleHistoryDaysChange - updating filters:", newFilters);
+    setFilters(newFilters);
   };
 
   return (
@@ -91,6 +119,7 @@ export const FilterOptions = () => {
               setPriceLevel(1);
               setCurrentRadius([0.2]);
               setCurrentHistoryDays(14);
+              console.log("FilterOptions - reset button clicked");
               resetFilters();
             }}>
               Reset all

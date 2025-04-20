@@ -1,12 +1,12 @@
-import { useContext } from "react";
-import { AppContext } from "@/context/AppContext";
+import { useContext, useEffect } from "react";
+import { AppContext, useAppContext } from "@/context/AppContext";
 import { Button } from "@/components/ui/button";
 import RestaurantCard from "./RestaurantCard";
 import { Shuffle } from "lucide-react";
 import { useRestaurants } from "@/hooks/use-restaurants";
 
 export default function SuggestionResults() {
-  const { location, filters, setTeamModalOpen } = useContext(AppContext);
+  const { location, filters, setTeamModalOpen } = useAppContext();
   const { 
     data: restaurants,
     isLoading,
@@ -19,6 +19,35 @@ export default function SuggestionResults() {
   const handleRandomPick = () => {
     pickRandomRestaurant();
   };
+  
+
+  // Add effect to track location changes
+  useEffect(() => {
+    console.log("SuggestionResults - location changed:", location);
+    console.log("SuggestionResults - location valid:", Boolean(location?.lat && location?.lng));
+  }, [location]);
+  
+  // Add effect to track filters changes
+  useEffect(() => {
+    console.log("SuggestionResults - filters changed:", filters);
+    if (filters) {
+      console.log("SuggestionResults - filters content:", JSON.stringify(filters));
+    }
+  }, [filters]);
+  
+  // Add effect to manually trigger refetch when location or filters change
+  useEffect(() => {
+    console.log("SuggestionResults - location or filters changed, triggering refetch");
+    console.log("SuggestionResults - location for refetch:", location);
+    console.log("SuggestionResults - filters for refetch:", filters ? JSON.stringify(filters) : null);
+    
+    if (location?.lat && location?.lng) {
+      // Small delay to ensure context updates have propagated
+      setTimeout(() => {
+        refetch();
+      }, 0);
+    }
+  }, [location, JSON.stringify(filters), refetch]);
 
   return (
     <div>
