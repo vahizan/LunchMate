@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
+import Results from "@/pages/results";
 import RestaurantDetails from "@/pages/restaurant-details";
 import { useState } from "react";
 import { TeamModal } from "./components/TeamModal";
@@ -48,6 +49,7 @@ function App() {
 
         <Switch>
           <Route path="/" component={Home} />
+          <Route path="/results" component={Results} />
           <Route path="/restaurant/:id" component={RestaurantDetails} />
           <Route component={NotFound} />
         </Switch>
