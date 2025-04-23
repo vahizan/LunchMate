@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, ReactNode, useContext, PropsWithChildren, FunctionComponent } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Restaurant, Location, Filters, UserPreferences, VisitHistoryItem } from '@/types';
 
@@ -17,43 +17,8 @@ const DEFAULT_LOCATION: Location = {
   lng: 0
 };
 
-interface AppContextType {
-  // User related
-  userPreferences: UserPreferences | null;
-  setUserPreferences: (prefs: UserPreferences) => void;
-  
-  // Favorites
-  favorites: Restaurant[];
-  toggleFavorite: (restaurant: Restaurant) => void;
-  isFavorite: (id: string) => boolean;
-  
-  // Visit history
-  visitHistory: VisitHistoryItem[];
-  addToHistory: (restaurant: Restaurant) => void;
-  removeFromHistory: (id: string) => void;
-  clearVisitHistory: () => void;
-  
-  // Filters and search
-  location: Location;
-  setLocation: (location: Location) => void;
-  filters: Filters;
-  setFilters: (filters: Filters) => void;
-  resetFilters: () => void;
-  
-  // Restaurants
-  restaurants: Restaurant[];
-  setRestaurants: (restaurants: Restaurant[]) => void;
-  
-  // Loading state
-  isLoading: boolean;
-  setIsLoading: (isLoading: boolean) => void;
-  
-  // Team modal
-  teamModalOpen: boolean;
-  setTeamModalOpen: (open: boolean) => void;
-}
-
-export const AppContext = createContext<AppContextType>({
+const defaultAppContext=  
+  {
   userPreferences: null,
   setUserPreferences: () => {},
   favorites: [],
@@ -74,16 +39,55 @@ export const AppContext = createContext<AppContextType>({
   setIsLoading: () => {},
   teamModalOpen: false,
   setTeamModalOpen: () => {}
-});
+}
 
-export const AppProvider = ({ children }: { children: ReactNode }) => {
+
+interface AppContextType {
+  // User related
+  userPreferences: UserPreferences | null;
+  setUserPreferences: (prefs: UserPreferences) => void;
+  
+  // Favorites
+  favorites: Restaurant[];
+  toggleFavorite: (restaurant: Restaurant) => void;
+  isFavorite: (id: string) => boolean;
+  
+  // Visit history
+  visitHistory: VisitHistoryItem[];
+  addToHistory: (restaurant: Restaurant) => void;
+  removeFromHistory: (id: string) => void;
+  clearVisitHistory: () => void;
+  
+  // Filters and search
+  location: Location|undefined;
+  setLocation: (location: Location) => void;
+  filters: Filters;
+  setFilters: (filters: Filters) => void;
+  resetFilters: () => void;
+  
+  // Restaurants
+  restaurants: Restaurant[];
+  setRestaurants: (restaurants: Restaurant[]) => void;
+  
+  // Loading state
+  isLoading: boolean;
+  setIsLoading: (isLoading: boolean) => void;
+  
+  // Team modal
+  teamModalOpen: boolean;
+  setTeamModalOpen: (open: boolean) => void;
+}
+export const AppContext = createContext<AppContextType>(defaultAppContext);
+AppContext.displayName = 'AppContext';
+
+ const AppProvider: FunctionComponent<PropsWithChildren> = ({ children }) =>  {
   const { toast } = useToast();
   
   // User preferences
   const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null);
   
   // Restaurants and search
-  const [location, setLocation] = useState<Location>(DEFAULT_LOCATION);
+  const [location, setLocation] = useState<Location>();
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   
@@ -140,7 +144,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, [filters]);
   
   useEffect(() => {
-    if (location.lat && location.lng) {
+    if (location?.lat && location?.lng) {
       localStorage.setItem('location', JSON.stringify(location));
     }
   }, [location]);
@@ -239,3 +243,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     </AppContext.Provider>
   );
 };
+
+export const useAppContext = (): AppContextType =>
+  useContext<AppContextType>(AppContext);
+
+export default AppProvider;

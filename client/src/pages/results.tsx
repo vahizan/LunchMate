@@ -1,28 +1,41 @@
 import { useContext, useEffect } from "react";
 import { AppContext, useAppContext } from "@/context/AppContext";
 import { Button } from "@/components/ui/button";
-import RestaurantCard from "./RestaurantCard";
-import { RefreshCw } from "lucide-react";
+import RestaurantCard from "@/components/RestaurantCard";
 import { useRestaurants } from "@/hooks/use-restaurants";
+import { useLocation } from "wouter";
 
-export default function SuggestionResults() {
-  const { location, filters, setTeamModalOpen } = useAppContext();
-  const {
+export default function Results() {
+  const { location, filters } = useAppContext();
+  const [_, navigate] = useLocation();
+  const { 
     data: restaurants,
     isLoading,
     error,
-    refetch
+    refetch,
+    hasMore,
+    loadMore,
+    isFetchingMore
   } = useRestaurants();
-  
-  // Log when restaurants data changes
+
+  // If no location is set, redirect back to home
   useEffect(() => {
-    console.log("SuggestionResults - restaurants data changed:", restaurants?.length);
-  }, [restaurants, location, filters]);
+    if (!location?.lat || !location?.lng) {
+      navigate("/");
+    }
+  }, [location, navigate]);
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">Suggestions</h2>
+    <main className="flex-grow container mx-auto px-4 py-6 pb-20 md:pb-6">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-semibold">Suggestion Results</h2>
+        <Button 
+          onClick={() => navigate("/")}
+          variant="outline"
+          className="border-primary text-primary hover:bg-primary/10"
+        >
+          Back to Filters
+        </Button>
       </div>
 
       {/* Loading state */}
@@ -32,7 +45,7 @@ export default function SuggestionResults() {
             <div key={i} className="bg-white rounded-lg shadow-md overflow-hidden">
               <div className="w-full h-48 bg-gray-200 animate-pulse"></div>
               <div className="p-4">
-                <div className="h-6 bg-gray-200 round ed w-2/3 mb-2 animate-pulse"></div>
+                <div className="h-6 bg-gray-200 rounded w-2/3 mb-2 animate-pulse"></div>
                 <div className="h-4 bg-gray-200 rounded w-1/3 mb-3 animate-pulse"></div>
                 <div className="h-4 bg-gray-200 rounded w-full mb-4 animate-pulse"></div>
                 <div className="flex space-x-2">
@@ -60,8 +73,8 @@ export default function SuggestionResults() {
         <div className="bg-white rounded-lg shadow-md p-6 text-center">
           <h3 className="text-lg font-medium mb-2">No restaurants found</h3>
           <p className="text-gray-500 mb-4">Try adjusting your filters or changing your location.</p>
-          <Button onClick={() => refetch()}>
-            Try again
+          <Button onClick={() => navigate("/")}>
+            Back to Filters
           </Button>
         </div>
       )}
@@ -74,8 +87,20 @@ export default function SuggestionResults() {
               <RestaurantCard key={restaurant.place_id} restaurant={restaurant} />
             ))}
           </div>
+          
+          {hasMore && (
+            <div className="flex justify-center mt-8 mb-6">
+              <Button
+                onClick={loadMore}
+                disabled={isFetchingMore}
+                className="bg-[#FC642D] hover:bg-[#FC642D]/90 text-white"
+              >
+                {isFetchingMore ? "Loading..." : "Load More Suggestions"}
+              </Button>
+            </div>
+          )}
         </>
       )}
-    </div>
+    </main>
   );
 }

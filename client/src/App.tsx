@@ -4,30 +4,20 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
+import Results from "@/pages/results";
 import RestaurantDetails from "@/pages/restaurant-details";
 import { useState } from "react";
 import { TeamModal } from "./components/TeamModal";
 import { ProfileModal } from "./components/ProfileModal";
-import { useLocation } from "wouter";
 import EnvDebugger from "./components/EnvDebugger";
-
-function Router() {
-  const [location] = useLocation();
-
-  return (
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/restaurant/:id" component={RestaurantDetails} />
-      <Route component={NotFound} />
-    </Switch>
-  );
-}
+import AppProvider from "./context/AppContext";
 
 function App() {
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   return (
+    <AppProvider>
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen flex flex-col">
         {/* Environment Variables Debugger */}
@@ -57,7 +47,13 @@ function App() {
           </div>
         </header>
 
-        <Router />
+        <Switch>
+          <Route path="/" component={Home} />
+          <Route path="/results" component={Results} />
+          <Route path="/restaurant/:id" component={RestaurantDetails} />
+          <Route component={NotFound} />
+        </Switch>
+      
 
         {/* Mobile bottom navigation */}
         <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 z-10">
@@ -91,8 +87,10 @@ function App() {
         <TeamModal isOpen={teamModalOpen} onClose={() => setTeamModalOpen(false)} />
         <ProfileModal isOpen={profileModalOpen} onClose={() => setProfileModalOpen(false)} />
       </div>
+    
       <Toaster />
     </QueryClientProvider>
+    </AppProvider>
   );
 }
 

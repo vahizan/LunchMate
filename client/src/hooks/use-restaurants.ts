@@ -1,27 +1,75 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useContext, useEffect, useState } from 'react';
-import { AppContext } from '@/context/AppContext';
+import { useEffect, useState } from 'react';
+import { useAppContext } from '@/context/AppContext';
 import { Restaurant } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+
+// Define pagination response type
+interface PaginatedResponse {
+  results: Restaurant[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+    hasMore: boolean;
+  };
+}
 
 export function useRestaurants() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { location, filters, visitHistory } = useContext(AppContext);
+  const { location, filters, visitHistory } = useAppContext();
   const [highlightedRestaurant, setHighlightedRestaurant] = useState<string | null>(null);
+  const [isFetchData, setIsFetchData] = useState<boolean>(true);
+
+  // Pagination state
+  const [page, setPage] = useState<number>(1);
+  const [hasMore, setHasMore] = useState<boolean>(true);
+  const [allRestaurants, setAllRestaurants] = useState<Restaurant[]>([]);
+  
+  // Create a stable query key that will change when location or filters change
+  // Add a timestamp to ensure the query key changes when filters change
+  const timestamp = Date.now();
+  
+  // Create a stringified query key to ensure it changes when location or filters change
+  const queryKeyString = JSON.stringify({
+    endpoint: '/api/restaurants',
+    timestamp: timestamp,
+    page: page,
+    location: location ? { lat: location.lat, lng: location.lng } : null,
+    filters: filters ? {
+      radius: filters.radius,
+      cuisines: filters.cuisines,
+      dietary: filters.dietary,
+      priceLevel: filters.priceLevel,
+      historyDays: filters.historyDays
+    } : null
+  });
+  
+  console.log("useRestaurants - queryKeyString:", queryKeyString);
   
   // Query to get restaurants based on location and filters
   const query = useQuery({
-    queryKey: ['/api/restaurants', location, filters],
+    queryKey: [queryKeyString],
     queryFn: async () => {
-      // Only fetch if we have a valid location
-      if (!location.lat || !location.lng) return [];
+      console.log("useRestaurants - queryFn called with location:", location);
+      console.log("useRestaurants - queryFn called with filters:", filters);
       
-      // Build query parameters
+      // Only fetch if we have a valid location
+      if (!location?.lat || !location?.lng) {
+        setIsFetchData(false);
+        console.log("useRestaurants - invalid location, returning empty array");
+        return { results: [], pagination: { hasMore: false, page: 1, pageSize: 10, totalCount: 0, totalPages: 0 } };
+      }
+      
+      // Build query parameters to match what the server expects
       const params = new URLSearchParams({
         lat: location.lat.toString(),
         lng: location.lng.toString(),
-        radius: filters.radius.toString()
+        radius: filters.radius.toString(),
+        page: page.toString(),
+        pageSize: '10' // Fixed page size
       });
       
       // Add cuisine filters if any
@@ -44,18 +92,48 @@ export function useRestaurants() {
       }
       
       // Make the request
+      console.log(`useRestaurants - fetching page ${page} with params:`, params.toString());
       const response = await fetch(`/api/restaurants?${params.toString()}`);
       
       if (!response.ok) {
+        setIsFetchData(false);
         throw new Error('Failed to fetch restaurants');
       }
       
-      return response.json();
+      const data: PaginatedResponse = await response.json();
+      console.log(`useRestaurants - received page ${page} with ${data.results.length} results, hasMore: ${data.pagination.hasMore}`);
+      
+      // Update pagination state
+      setHasMore(data.pagination.hasMore);
+      
+      // If it's the first page, replace all restaurants
+      // Otherwise, append to existing restaurants
+      if (page === 1) {
+        console.log(`useRestaurants - replacing all restaurants with ${data.results.length} results`);
+        setAllRestaurants(data.results);
+      } else {
+        console.log(`useRestaurants - appending ${data.results.length} results to existing ${allRestaurants.length} restaurants`);
+        setAllRestaurants(prev => [...prev, ...data.results]);
+      }
+      setIsFetchData(false);
+      return data;
     },
-    enabled: Boolean(location.lat && location.lng),
+    enabled: isFetchData,
   });
-
-  const restaurants = query.data as Restaurant[];
+  
+  // Use all restaurants from state instead of directly from query
+  const restaurants = allRestaurants;
+  
+  // Function to load more results
+  const loadMore = () => {
+    if (hasMore) {
+      console.log(`useRestaurants - loading more results, incrementing page from ${page} to ${page + 1}`);
+      setPage(prevPage => prevPage + 1);
+      setIsFetchData(true);
+    } else {
+      console.log(`useRestaurants - no more results to load`);
+    }
+  };
 
   // Filter out restaurants that have been visited recently
   const filteredRestaurants = restaurants ? restaurants.filter(restaurant => {
@@ -72,7 +150,8 @@ export function useRestaurants() {
   }) : [];
 
   // Pick random restaurant
-  const pickRandomRestaurant = () => {
+  const pickRandomRestaurant = async () => {
+    setIsFetchData(true);
     if (!filteredRestaurants || filteredRestaurants.length === 0) {
       toast({
         title: "No restaurants available",
@@ -133,13 +212,22 @@ export function useRestaurants() {
     }
   });
 
+  // Force refetch when navigating to results page
+  const triggerFetch = () => {
+    setIsFetchData(true);
+    query.refetch();
+  };
+
   return {
     data: filteredRestaurants,
-    isLoading: query.isLoading,
+    isLoading: query.isLoading || query.isFetching,
     error: query.error,
-    refetch: query.refetch,
+    refetch: triggerFetch,
     pickRandomRestaurant,
     addToTeam: addToTeamMutation.mutate,
-    highlightedRestaurantId: highlightedRestaurant
+    highlightedRestaurantId: highlightedRestaurant,
+    hasMore,
+    loadMore,
+    isFetchingMore: query.isFetching && page > 1
   };
 }

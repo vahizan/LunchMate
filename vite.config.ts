@@ -12,7 +12,7 @@ const __dirname = path.dirname(__filename);
 
 // Load environment variables from .env files
 // This will load .env by default, and .env.development or .env.production based on NODE_ENV
-config({ path: '.env' });
+config();
 
 export default defineConfig({
   plugins: [

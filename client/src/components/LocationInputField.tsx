@@ -61,10 +61,12 @@ export function LocationInputField({ onLocationSelected }: LocationInputFieldPro
               lng: newLocation.lng
             });
             
-            setLocation(newLocation);
+            // Create a new object to ensure reference changes
+            console.log("LocationInputField - Setting location with new object:", newLocation);
+            setLocation({...newLocation});
             
             if (onLocationSelected) {
-              onLocationSelected(newLocation);
+              onLocationSelected({...newLocation});
             }
           } else {
             console.warn('LocationInputField: Selected place has no geometry data');
@@ -103,7 +105,7 @@ export function LocationInputField({ onLocationSelected }: LocationInputFieldPro
           ref={inputRef}
           className="w-full pl-10"
           placeholder="Enter workplace address or postcode"
-          defaultValue={location.address}
+          defaultValue={location?.address}
         />
       </div>
     </>
