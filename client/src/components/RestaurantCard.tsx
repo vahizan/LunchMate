@@ -19,9 +19,7 @@ export default function RestaurantCard({ restaurant, highlight }: RestaurantCard
   const isFavorited = isFavorite(restaurant.place_id);
   const priceLevel = "$".repeat(restaurant.price_level || 1);
   
-  const photoUrl = restaurant.photos && restaurant.photos.length > 0
-    ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${restaurant.photos[0].photo_reference}&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`
-    : "https://via.placeholder.com/400x300?text=No+Image";
+  const photoUrl = undefined;
 
   return (
     <Card className={cn(

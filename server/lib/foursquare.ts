@@ -1,22 +1,10 @@
 import fetch from 'node-fetch';
 import { FOOD_CATEGORY_IDS } from '@shared/types';
 import { config } from 'dotenv';
+import { Location, Place, FilterOptions } from './foursquare.interfaces';
+
 // Use any type for now to avoid TypeScript errors
 const fetchAny: any = fetch;
-
-
-// Type for location
-interface Location {
-  lat: number;
-  lng: number;
-}
-
-// Type for filter options
-interface FilterOptions {
-  cuisines?: string[];
-  dietary?: string[];
-  priceLevel?: number;
-}
 
 // Get Foursquare API key from environment variabless
 const apiKey = config().parsed?.FOURSQUARE_API_KEY || '';
@@ -148,14 +136,10 @@ export async function fetchRestaurants(
     console.log(`Foursquare returned ${data.results?.length || 0} results`);
     
     // Process results and convert to our Restaurant format
-    const results = data.results || [];
-    return results.map((place: any) => {
+    const results: Place[] = data.results || [];
+    return results.map((place: Place) => {
       // Extract the first photo if available
-      const photos = place.photos?.length > 0 ? [{
-        photo_reference: place.photos[0].id,
-        height: place.photos[0].height,
-        width: place.photos[0].width
-      }] : undefined;
+      const photos = place.photos;
       
       // Extract place types from categories
       const types = place.categories?.map((cat: any) => cat.name.toLowerCase()) || [];
