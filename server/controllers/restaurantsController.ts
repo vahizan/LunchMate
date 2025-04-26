@@ -1,7 +1,11 @@
 import { Request, Response } from "express";
 import { z } from "zod";
 import { fetchRestaurants as fetchGoogleRestaurants, fetchRestaurantDetails as fetchGoogleRestaurantDetails } from "../lib/maps";
-import { fetchRestaurants as fetchFoursquareRestaurants, fetchRestaurantDetails as fetchFoursquareRestaurantDetails } from "../lib/foursquare";
+import {
+  fetchRestaurants as fetchFoursquareRestaurants,
+  fetchRestaurantDetails as fetchFoursquareRestaurantDetails,
+  fetchPlaceImages as fetchFoursquareImages
+} from "../lib/foursquare";
 
 // Get all restaurants
 export async function getRestaurants(req: Request, res: Response) {
@@ -120,8 +124,39 @@ export async function getRestaurantById(req: Request, res: Response) {
   }
 }
 
+// Get restaurant images by ID
+export async function getRestaurantImages(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ error: "Restaurant ID is required" });
+    }
+
+    // Determine which API to use based on environment variable
+    const useGoogleMaps = process.env.PLACES_PROVIDER === 'google';
+    
+    if (useGoogleMaps) {
+      // Google Maps API doesn't have a dedicated endpoint for images
+      // We could fetch place details and extract photos, but for now return an error
+      return res.status(501).json({
+        error: "Image fetching not implemented for Google Maps API",
+        message: "Set PLACES_PROVIDER=foursquare to use Foursquare for image fetching"
+      });
+    } else {
+      // Use Foursquare API to fetch images
+      const images = await fetchFoursquareImages(id);
+      res.json({ images });
+    }
+  } catch (error) {
+    console.error("Error fetching restaurant images:", error);
+    res.status(500).json({ error: "Failed to fetch restaurant images" });
+  }
+}
+
 // Register restaurant routes
 export function registerRestaurantRoutes(app: any) {
   app.get("/api/restaurants", getRestaurants);
   app.get("/api/restaurants/:id", getRestaurantById);
+  app.get("/api/restaurants/:id/images", getRestaurantImages);
 }

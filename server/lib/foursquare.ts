@@ -18,7 +18,7 @@ interface FilterOptions {
   priceLevel?: number;
 }
 
-// Get Foursquare API key from environment variables
+// Get Foursquare API key from environment variabless
 const apiKey = config().parsed?.FOURSQUARE_API_KEY || '';
 
 // Helper function to calculate distance between two coordinates (Haversine formula)
@@ -272,6 +272,46 @@ export async function fetchRestaurantDetails(placeId: string): Promise<any> {
     };
   } catch (error) {
     console.error('Error fetching restaurant details from Foursquare:', error);
+    throw error;
+  }
+}
+
+// Fetch images for a specific place
+export async function fetchPlaceImages(placeId: string): Promise<any[]> {
+  try {
+    if (!apiKey) {
+      console.error('Foursquare API key is missing. Check your environment variables.');
+      throw new Error('Foursquare API key is missing');
+    }
+    
+    // First, we need to get the place details which include the photos
+    const url = `https://api.foursquare.com/v3/places/${placeId}/photos`;
+    
+    const response = await fetchAny(url, {
+      headers: {
+        'Authorization': apiKey,
+        'Accept': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Foursquare API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // Process and return the photos in a standardized format
+    return data.map((photo: any) => ({
+      photo_reference: photo.id,
+      height: photo.height,
+      width: photo.width,
+      prefix: photo.prefix,
+      suffix: photo.suffix,
+      created_at: photo.created_at,
+      url: `${photo.prefix}original${photo.suffix}` // Construct the full URL for the original size image
+    }));
+  } catch (error) {
+    console.error('Error fetching place images from Foursquare:', error);
     throw error;
   }
 }
