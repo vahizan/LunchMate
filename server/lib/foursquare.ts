@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
 import { FOOD_CATEGORY_IDS } from '@shared/types';
 import { config } from 'dotenv';
-import { Location, Place, FilterOptions } from './foursquare.interfaces';
+import { Location, Place, PlacePhoto, FilterOptions } from './foursquare.interfaces';
 
 // Use any type for now to avoid TypeScript errors
 const fetchAny: any = fetch;
@@ -139,7 +139,15 @@ export async function fetchRestaurants(
     const results: Place[] = data.results || [];
     return results.map((place: Place) => {
       // Extract the first photo if available
-      const photos = place.photos;
+      const photos = place.photos?.map((photoDetails :PlacePhoto) => {
+        return {
+          id: photoDetails?.id,
+          created_at: photoDetails?.created_at,
+          small: `${photoDetails?.prefix}${(200/photoDetails.height)*photoDetails.width}x${200}${photoDetails?.suffix}`,
+          large: `${photoDetails?.prefix}${(600/photoDetails.height)*photoDetails.width}x${600}${photoDetails?.suffix}`,
+          xlarge: `${photoDetails?.prefix}${photoDetails.height}x${photoDetails.width}${photoDetails?.suffix}`,
+        }
+      });
       
       // Extract place types from categories
       const types = place.categories?.map((cat: any) => cat.name.toLowerCase()) || [];
@@ -164,6 +172,7 @@ export async function fetchRestaurants(
           place.location?.postcode,
           place.location?.country
         ].filter(Boolean).join(', '),
+        menu: place?.menu,
         vicinity: place.location?.address,
         rating: place.rating ? place.rating / 2 : undefined, // Convert from 10 to 5 scale
         user_ratings_total: place.stats?.total_ratings || 0,
@@ -171,12 +180,16 @@ export async function fetchRestaurants(
         types,
         photos,
         opening_hours: place.hours ? {
+          hours: place?.hours,
           open_now: place.hours?.is_open_now || false,
           weekday_text: place.hours?.display || []
         } : undefined,
         geometry: {
           location: placeLocation
         },
+        popularity: place?.popularity,
+        metadata: place?.stats,
+        description: place?.description,
         distance,
         formatted_phone_number: place.tel,
         website: place.website,

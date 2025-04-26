@@ -10,7 +10,14 @@ export interface Location {
     dietary?: string[];
     priceLevel?: number;
   }
-  
+  export interface PlacePhoto {
+      id: string;
+      created_at: string;
+      prefix: string;
+      suffix: string;
+      width: number;
+      height: number;    
+  }
   export interface Place {
     fsq_id: string;
     name: string;
@@ -47,14 +54,7 @@ export interface Location {
     distance?: number;
     rating?: number;
     price?: number;
-    photos?: Array<{
-      id: string;
-      created_at: string;
-      prefix: string;
-      suffix: string;
-      width: number;
-      height: number;
-    }>;
+    photos?: Array<PlacePhoto>;
     hours?: {
       display?: string[];
       is_open_now?: boolean;

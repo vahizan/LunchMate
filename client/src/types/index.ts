@@ -25,9 +25,11 @@ export interface Restaurant {
   price_level?: number;
   types?: string[];
   photos?: Array<{
-    photo_reference: string;
-    height: number;
-    width: number;
+    id: string;
+    created_at: string;
+    small: string;
+    large: string;
+    xlarge: string;
   }>;
   opening_hours?: {
     open_now: boolean;

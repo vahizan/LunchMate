@@ -19,20 +19,20 @@ export default function RestaurantCard({ restaurant, highlight }: RestaurantCard
   const isFavorited = isFavorite(restaurant.place_id);
   const priceLevel = "$".repeat(restaurant.price_level || 1);
   
-  const photoUrl = undefined;
+  const photoUrl = restaurant?.photos?.length && restaurant?.photos[0].small;
 
   return (
     <Card className={cn(
       "overflow-hidden transition-all", 
       highlight && "ring-2 ring-primary"
     )}>
-      <div className="relative">
+      {photoUrl && <div className="relative">
         <img 
           src={photoUrl} 
           alt={restaurant.name} 
           className="w-full h-48 object-cover"
         />
-      </div>
+      </div> }
       <div className="p-4">
         <div className="flex justify-between items-start">
           <div>
