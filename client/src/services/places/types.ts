@@ -49,4 +49,4 @@ export interface PlaceResult {
 }
 
 // Provider type
-export type PlacesProviderType = 'google' | 'foursquare';
+export type PlacesProviderType = 'google' | 'foursquare' | 'hybrid';

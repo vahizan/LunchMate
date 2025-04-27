@@ -8,7 +8,8 @@ const DEFAULT_FILTERS: Filters = {
   cuisines: [],
   dietary: [],
   priceLevel: 2,
-  historyDays: 14
+  historyDays: 14,
+  excludeChains: false
 };
 
 const DEFAULT_LOCATION: Location = {

@@ -43,7 +43,8 @@ export function useRestaurants() {
       cuisines: filters.cuisines,
       dietary: filters.dietary,
       priceLevel: filters.priceLevel,
-      historyDays: filters.historyDays
+      historyDays: filters.historyDays,
+      excludeChains: filters.excludeChains
     } : null
   });
   
@@ -89,6 +90,11 @@ export function useRestaurants() {
       // Add price level filter if set
       if (filters.priceLevel) {
         params.append('priceLevel', filters.priceLevel.toString());
+      }
+      
+      // Add exclude chains filter if set
+      if (filters.excludeChains) {
+        params.append('excludeChains', filters.excludeChains.toString());
       }
       
       // Make the request

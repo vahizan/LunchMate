@@ -136,7 +136,14 @@ export async function fetchRestaurants(
     console.log(`Foursquare returned ${data.results?.length || 0} results`);
     
     // Process results and convert to our Restaurant format
-    const results: Place[] = data.results || [];
+    let results: Place[] = data.results || [];
+    
+    // Filter out chain restaurants if requested
+    if (filters.excludeChains) {
+      console.log('Filtering out chain restaurants');
+      results = results.filter(place => !place.chains || place.chains.length === 0);
+    }
+    
     return results.map((place: Place) => {
       // Extract the first photo if available
       const photos = place.photos?.map((photoDetails :PlacePhoto) => {

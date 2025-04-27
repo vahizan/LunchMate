@@ -1,6 +1,7 @@
 import { PlacesProvider, PlacesProviderType } from './types';
 import { GooglePlacesProvider } from './google-places-provider';
 import { FoursquareProvider } from './foursquare-places-provider';
+import { HybridPlacesProvider } from './hybrid-places-provider';
 
 /**
  * Factory class for creating places providers
@@ -8,7 +9,7 @@ import { FoursquareProvider } from './foursquare-places-provider';
 export class PlacesFactory {
   private static instance: PlacesFactory;
   private providers: Map<PlacesProviderType, PlacesProvider> = new Map();
-  private activeProvider: PlacesProviderType = 'foursquare'; // Default provider
+  private activeProvider: PlacesProviderType = 'hybrid'; // Default provider
 
   /**
    * Private constructor to enforce singleton pattern
@@ -17,10 +18,11 @@ export class PlacesFactory {
     // Initialize providers
     this.providers.set('google', new GooglePlacesProvider());
     this.providers.set('foursquare', new FoursquareProvider());
+    this.providers.set('hybrid', new HybridPlacesProvider());
     
     // Try to get the active provider from environment or config
     const configProvider = import.meta.env.VITE_PLACES_PROVIDER as PlacesProviderType;
-    if (configProvider && (configProvider === 'google' || configProvider === 'foursquare')) {
+    if (configProvider && (configProvider === 'google' || configProvider === 'foursquare' || configProvider === 'hybrid')) {
       this.activeProvider = configProvider;
       console.log(`Using places provider from config: ${this.activeProvider}`);
     } else {

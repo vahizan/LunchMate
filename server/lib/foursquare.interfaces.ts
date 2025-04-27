@@ -9,6 +9,7 @@ export interface Location {
     cuisines?: string[];
     dietary?: string[];
     priceLevel?: number;
+    excludeChains?: boolean;
   }
   export interface PlacePhoto {
       id: string;

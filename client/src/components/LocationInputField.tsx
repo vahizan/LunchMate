@@ -20,16 +20,27 @@ export function LocationInputField({ onLocationSelected }: LocationInputFieldPro
   // Initialize Google Places Autocomplete
   useEffect(() => {
     console.log(`LocationInputField: Autocomplete useEffect triggered (using ${providerType} provider)`);
-    const apiKey = providerType === 'google'
-      ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY
-      : import.meta.env.VITE_FOURSQUARE_PLACES_API_KEY;
+    
+    // Determine which API key to use based on provider
+    let apiKey;
+    let effectiveProvider = providerType;
+    
+    // For hybrid provider, we use Foursquare for autocomplete
+    if (providerType === 'hybrid') {
+      apiKey = import.meta.env.VITE_FOURSQUARE_PLACES_API_KEY;
+      effectiveProvider = 'foursquare (via hybrid)';
+    } else if (providerType === 'google') {
+      apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    } else {
+      apiKey = import.meta.env.VITE_FOURSQUARE_PLACES_API_KEY;
+    }
     
     // Clear any previous errors
     setAutocompleteError(null);
     
     if (!apiKey) {
-      console.error(`LocationInputField: ${providerType} API key is missing`);
-      setAutocompleteError(`${providerType.charAt(0).toUpperCase() + providerType.slice(1)} API key is missing. Please check your environment configuration.`);
+      console.error(`LocationInputField: ${effectiveProvider} API key is missing`);
+      setAutocompleteError(`${effectiveProvider.charAt(0).toUpperCase() + effectiveProvider.slice(1)} API key is missing. Please check your environment configuration.`);
       return;
     }
 

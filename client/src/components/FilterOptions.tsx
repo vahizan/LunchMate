@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
 // Define cuisine types and dietary restrictions
@@ -29,6 +30,7 @@ export const FilterOptions = () => {
   const [currentDietary, setCurrentDietary] = useState<string[]>();
   const [currentPriceLevel, setCurrentPriceLevel] = useState<number>();
   const [currentHistoryDays, setCurrentHistoryDays] = useState<number>();
+  const [currentExcludeChains, setCurrentExcludeChains] = useState<boolean>();
 
   // Initialize local state from filters
   useEffect(() => {
@@ -37,6 +39,7 @@ export const FilterOptions = () => {
     setCurrentDietary(filters.dietary);
     setCurrentPriceLevel(filters.priceLevel);
     setCurrentHistoryDays(filters.historyDays);
+    setCurrentExcludeChains(filters.excludeChains);
   }, [filters]);
 
   // Generic function to toggle array items (for cuisines and dietary restrictions)
@@ -107,6 +110,18 @@ export const FilterOptions = () => {
     setFilters(newFilters);
   };
 
+  const handleExcludeChainsChange = (checked: boolean) => {
+    setCurrentExcludeChains(checked);
+    
+    // Create a completely new object to ensure reference changes
+    const newFilters = {
+      ...filters,
+      excludeChains: checked
+    };
+    console.log("FilterOptions - handleExcludeChainsChange - updating filters:", newFilters);
+    setFilters(newFilters);
+  };
+
   return (
     <div className="mb-6">
       <Card>
@@ -119,6 +134,7 @@ export const FilterOptions = () => {
               setPriceLevel(1);
               setCurrentRadius([0.2]);
               setCurrentHistoryDays(14);
+              setCurrentExcludeChains(false);
               console.log("FilterOptions - reset button clicked");
               resetFilters();
             }}>
@@ -238,6 +254,21 @@ export const FilterOptions = () => {
                 <SelectItem value="0">Don't avoid</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Exclude Chain Restaurants */}
+          <div className="mt-6 flex items-center space-x-2">
+            <Checkbox
+              id="exclude-chains"
+              checked={currentExcludeChains}
+              onCheckedChange={handleExcludeChainsChange}
+            />
+            <Label
+              htmlFor="exclude-chains"
+              className="text-sm font-medium text-gray-700 cursor-pointer"
+            >
+              Exclude chain restaurants
+            </Label>
           </div>
         </CardContent>
       </Card>
