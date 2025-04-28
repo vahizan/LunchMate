@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, ReactNode, useContext, PropsWithChildren, FunctionComponent } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Restaurant, Location, Filters, UserPreferences, VisitHistoryItem } from '@/types';
+import { FOOD_CATEGORIES } from '@shared/types';
 
 // Default values
 const DEFAULT_FILTERS: Filters = {

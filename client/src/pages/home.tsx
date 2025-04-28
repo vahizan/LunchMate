@@ -1,16 +1,37 @@
-import { useContext } from "react";
+import { useContext, useEffect } from "react";
 import { useLocation } from "wouter";
 import LocationInput from "@/components/LocationInput";
 import FilterOptions from "@/components/FilterOptions";
 import SuggestionResults from "@/components/SuggestionResults";
-import { AppContext } from "@/context/AppContext";
+import { AppContext, useAppContext } from "@/context/AppContext";
 import { Button } from "@/components/ui/button";
 import { useRestaurants } from "@/hooks/use-restaurants";
 import { Shuffle, Search } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import RestaurantCard from "@/components/RestaurantCard";
 
 export default function Home() {
-  const { isLoading, location } = useContext(AppContext);
-  const { hasMore, loadMore, isFetchingMore, pickRandomRestaurant } = useRestaurants();
+  const { isLoading, location } = useAppContext();
+  const { pickRandomRestaurant, highlightedRestaurant } = useRestaurants();
+
+  useEffect(() => {
+    console.log("highlighted Restaurant", highlightedRestaurant);
+    if(!highlightedRestaurant) return;
+
+    toast({
+      title: "Random pick for you",
+      description: `We've selected ${highlightedRestaurant.name} for you!`,
+    });
+    
+    // Scroll to the restaurant card
+    setTimeout(() => {
+      const element = document.getElementById(`restaurant-${highlightedRestaurant.place_id}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+  }, [highlightedRestaurant])
+
   const [_, navigate] = useLocation();
 
   const handleGetSuggestions = () => {
@@ -41,6 +62,7 @@ export default function Home() {
           Get Suggestions
         </Button>
       </div>
+      {highlightedRestaurant && <RestaurantCard restaurant={highlightedRestaurant} highlight/> }
     </main>
   );
 }

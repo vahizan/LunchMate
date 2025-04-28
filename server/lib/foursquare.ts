@@ -36,11 +36,8 @@ function buildCategoriesString(filters: FilterOptions): string | undefined {
   const categoryIds: string[] = [];
   
   // Add base food category
-  categoryIds.push(FOOD_CATEGORY_IDS['restaurant']);
-  categoryIds.push(FOOD_CATEGORY_IDS['food']);
+  categoryIds.concat([FOOD_CATEGORY_IDS['restaurant'], FOOD_CATEGORY_IDS['food'],FOOD_CATEGORY_IDS['hawker'],FOOD_CATEGORY_IDS['food stall']]);
   categoryIds.push(FOOD_CATEGORY_IDS['cafe']);
-  categoryIds.push(FOOD_CATEGORY_IDS['hawker']);
-  categoryIds.push(FOOD_CATEGORY_IDS['food stall']);
   
   // Add cuisine categories if available
   if (filters.cuisines && filters.cuisines.length > 0) {
@@ -118,8 +115,6 @@ export async function fetchRestaurants(
       params.append('max_price', maxPrice.toString());
     }
     
-    console.log("PARAMS", params);
-
     // Make the request
     const response = await fetchAny(`${baseUrl}?${params.toString()}`, {
       headers: {

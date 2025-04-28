@@ -1,5 +1,5 @@
-import { useContext, useEffect, useState } from "react";
-import { AppContext } from "@/context/AppContext";
+import { useEffect, useState } from "react";
+import { useAppContext } from "@/context/AppContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -7,10 +7,26 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { PlusCircle } from "lucide-react";
+import { FOOD_CATEGORIES } from "@/../../shared/types";
 
 // Define cuisine types and dietary restrictions
 const CUISINE_TYPES = [
-  "Italian", "Japanese", "Indian", "Chinese", "Mexican", "American", "Thai", "French", "Spanish", "Greek", "Korean"
+  FOOD_CATEGORIES.ITALIAN, FOOD_CATEGORIES.JAPANESE, FOOD_CATEGORIES.INDIAN, FOOD_CATEGORIES.CHINESE,
+  FOOD_CATEGORIES.MEXICAN, FOOD_CATEGORIES.AMERICAN, FOOD_CATEGORIES.THAI, FOOD_CATEGORIES.FRENCH,
+  FOOD_CATEGORIES.SPANISH, FOOD_CATEGORIES.GREEK, FOOD_CATEGORIES.KOREAN
+];
+
+// Extended cuisine types for the dialog
+const EXTENDED_CUISINE_TYPES = [
+  ...CUISINE_TYPES, FOOD_CATEGORIES.VIETNAMESE,
+  FOOD_CATEGORIES.MEDITERRANEAN, FOOD_CATEGORIES.MIDDLE_EASTERN, FOOD_CATEGORIES.CARIBBEAN,
+  FOOD_CATEGORIES.BRAZILIAN, FOOD_CATEGORIES.GERMAN, FOOD_CATEGORIES.BRITISH, FOOD_CATEGORIES.IRISH,
+  FOOD_CATEGORIES.AFRICAN, FOOD_CATEGORIES.SEAFOOD, FOOD_CATEGORIES.BBQ, FOOD_CATEGORIES.PIZZA,
+  FOOD_CATEGORIES.BURGER, FOOD_CATEGORIES.VEGETARIAN, FOOD_CATEGORIES.VEGAN
 ];
 
 const DIETARY_RESTRICTIONS = [
@@ -22,7 +38,7 @@ export const FilterOptions = () => {
     filters,
     setFilters,
     resetFilters
-  } = useContext(AppContext);
+  } = useAppContext();
 
   // Local state for each filter option
   const [currentRadius, setCurrentRadius] = useState<number[]>();
@@ -31,6 +47,9 @@ export const FilterOptions = () => {
   const [currentPriceLevel, setCurrentPriceLevel] = useState<number>();
   const [currentHistoryDays, setCurrentHistoryDays] = useState<number>();
   const [currentExcludeChains, setCurrentExcludeChains] = useState<boolean>();
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [dialogOpen, setDialogOpen] = useState<boolean>(false);
+  const [customCuisine, setCustomCuisine] = useState<string>("");
 
   // Initialize local state from filters
   useEffect(() => {
@@ -77,12 +96,34 @@ export const FilterOptions = () => {
     setFilters(newFilters);
   };
 
-  const toggleCuisine = (cuisine: string) => {
+  const toggleCuisine = (cuisine: FOOD_CATEGORIES) => {
     toggleArrayItem(currentCuisines, setCurrentCuisines, cuisine, 'cuisines');
   };
 
   const toggleDietary = (dietary: string) => {
     toggleArrayItem(currentDietary, setCurrentDietary, dietary, 'dietary');
+  };
+
+  // Filter extended cuisine types based on search term
+  const filteredCuisines = EXTENDED_CUISINE_TYPES.filter(cuisine =>
+    cuisine.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Add custom cuisine to filters
+  const addCustomCuisine = () => {
+    if (customCuisine.trim() !== "") {
+      // Convert custom cuisine to lowercase for consistency
+      const customCuisineValue = customCuisine.toLowerCase() as FOOD_CATEGORIES;
+      if (!currentCuisines?.includes(customCuisineValue)) {
+        toggleArrayItem(currentCuisines, setCurrentCuisines, customCuisineValue, 'cuisines');
+        setCustomCuisine("");
+      }
+    }
+  };
+
+  // Handle cuisine selection from dialog
+  const handleCuisineSelect = (cuisine: FOOD_CATEGORIES) => {
+    toggleArrayItem(currentCuisines, setCurrentCuisines, cuisine, 'cuisines');
   };
 
   const setPriceLevel = (price: number) => {
@@ -181,7 +222,82 @@ export const FilterOptions = () => {
                   )}
                   onClick={() => toggleCuisine(cuisine)}
                 >
-                  {cuisine}
+                  {/* Capitalize first letter of each word */}
+                  {cuisine.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                </Button>
+              ))}
+              
+              {/* Choose Other Cuisine Dialog */}
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="px-3 py-1 h-auto rounded-full text-sm font-medium transition-all bg-gray-100 text-gray-800 hover:bg-gray-200 flex items-center gap-1"
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    Choose other
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Select or add a cuisine</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-2">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder="Search or enter a custom cuisine"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button
+                        onClick={() => {
+                          setCustomCuisine(searchTerm);
+                          addCustomCuisine();
+                          setSearchTerm("");
+                        }}
+                        disabled={!searchTerm.trim()}
+                      >
+                        Add
+                      </Button>
+                    </div>
+                    
+                    <ScrollArea className="h-72">
+                      <div className="grid grid-cols-2 gap-2">
+                        {filteredCuisines.map((cuisine) => (
+                          <Button
+                            key={cuisine}
+                            variant="outline"
+                            className={cn(
+                              "justify-start h-auto py-2",
+                              currentCuisines?.includes(cuisine)
+                                ? "bg-primary text-white border-primary"
+                                : "border-gray-200"
+                            )}
+                            onClick={() => {
+                              handleCuisineSelect(cuisine);
+                            }}
+                          >
+                            {/* Capitalize first letter of each word */}
+                            {cuisine.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                          </Button>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              
+              {/* Display custom cuisines that aren't in the default list */}
+              {currentCuisines?.filter(cuisine => !CUISINE_TYPES.includes(cuisine)).map((cuisine) => (
+                <Button
+                  key={cuisine}
+                  variant="outline"
+                  className="bg-primary text-white border-primary hover:bg-primary/90 hover:text-white px-3 py-1 h-auto rounded-full text-sm font-medium transition-all"
+                  onClick={() => toggleCuisine(cuisine)}
+                >
+                  {/* Capitalize first letter of each word */}
+                  {cuisine.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                 </Button>
               ))}
             </div>

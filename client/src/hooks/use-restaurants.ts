@@ -20,7 +20,7 @@ export function useRestaurants() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { location, filters, visitHistory } = useAppContext();
-  const [highlightedRestaurant, setHighlightedRestaurant] = useState<string | null>(null);
+  const [highlightedRestaurant, setHighlightedRestaurant] = useState<Restaurant| null>(null);
   const [isFetchData, setIsFetchData] = useState<boolean>(true);
 
   // Pagination state
@@ -170,25 +170,7 @@ export function useRestaurants() {
     const randomIndex = Math.floor(Math.random() * filteredRestaurants.length);
     const restaurant = filteredRestaurants[randomIndex];
     
-    setHighlightedRestaurant(restaurant.place_id);
-    
-    toast({
-      title: "Random pick",
-      description: `We've selected ${restaurant.name} for you!`,
-    });
-    
-    // Scroll to the restaurant card
-    setTimeout(() => {
-      const element = document.getElementById(`restaurant-${restaurant.place_id}`);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }, 100);
-    
-    // Clear highlight after 3 seconds
-    setTimeout(() => {
-      setHighlightedRestaurant(null);
-    }, 3000);
+    setHighlightedRestaurant(restaurant);
   };
 
   // Add restaurant to team suggestion
@@ -231,7 +213,7 @@ export function useRestaurants() {
     refetch: triggerFetch,
     pickRandomRestaurant,
     addToTeam: addToTeamMutation.mutate,
-    highlightedRestaurantId: highlightedRestaurant,
+    highlightedRestaurant: highlightedRestaurant,
     hasMore,
     loadMore,
     isFetchingMore: query.isFetching && page > 1
