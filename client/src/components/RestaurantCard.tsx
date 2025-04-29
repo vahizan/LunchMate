@@ -19,7 +19,7 @@ export default function RestaurantCard({ restaurant, highlight }: RestaurantCard
   const isFavorited = isFavorite(restaurant.place_id);
   const priceLevel = "$".repeat(restaurant.price_level || 1);
   
-  const photoUrl = restaurant?.photos?.length && restaurant?.photos[0].small;
+  const photoUrl = restaurant?.photos?.length && restaurant?.photos[0].large;
 
   return (
     <Card className={cn(

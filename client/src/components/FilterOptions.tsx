@@ -47,6 +47,7 @@ export const FilterOptions = () => {
   const [currentPriceLevel, setCurrentPriceLevel] = useState<number>();
   const [currentHistoryDays, setCurrentHistoryDays] = useState<number>();
   const [currentExcludeChains, setCurrentExcludeChains] = useState<boolean>();
+  const [currentExcludeCafe, setCurrentExcludeCafe] = useState<boolean>();
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [dialogOpen, setDialogOpen] = useState<boolean>(false);
   const [customCuisine, setCustomCuisine] = useState<string>("");
@@ -59,6 +60,7 @@ export const FilterOptions = () => {
     setCurrentPriceLevel(filters.priceLevel);
     setCurrentHistoryDays(filters.historyDays);
     setCurrentExcludeChains(filters.excludeChains);
+    setCurrentExcludeCafe(filters.excludeCafe);
   }, [filters]);
 
   // Generic function to toggle array items (for cuisines and dietary restrictions)
@@ -96,7 +98,7 @@ export const FilterOptions = () => {
     setFilters(newFilters);
   };
 
-  const toggleCuisine = (cuisine: FOOD_CATEGORIES) => {
+  const toggleCuisine = (cuisine: string) => {
     toggleArrayItem(currentCuisines, setCurrentCuisines, cuisine, 'cuisines');
   };
 
@@ -163,6 +165,17 @@ export const FilterOptions = () => {
     setFilters(newFilters);
   };
 
+  const handleExcludeCafeChange = (checked: boolean) => {
+    // Create a completely new object to ensure reference changes
+    const newFilters = {
+      ...filters,
+      excludeCafe: checked
+    };
+    console.log("FilterOptions - handleExcludeCafeChange - updating filters:", newFilters);
+    setFilters(newFilters);
+    setCurrentExcludeCafe(checked);
+  };
+
   return (
     <div className="mb-6">
       <Card>
@@ -176,6 +189,7 @@ export const FilterOptions = () => {
               setCurrentRadius([0.2]);
               setCurrentHistoryDays(14);
               setCurrentExcludeChains(false);
+              setCurrentExcludeCafe(false);
               console.log("FilterOptions - reset button clicked");
               resetFilters();
             }}>
@@ -289,7 +303,7 @@ export const FilterOptions = () => {
               </Dialog>
               
               {/* Display custom cuisines that aren't in the default list */}
-              {currentCuisines?.filter(cuisine => !CUISINE_TYPES.includes(cuisine)).map((cuisine) => (
+              {currentCuisines?.filter(cuisine => !CUISINE_TYPES.includes(cuisine as FOOD_CATEGORIES)).map((cuisine) => (
                 <Button
                   key={cuisine}
                   variant="outline"
@@ -384,6 +398,21 @@ export const FilterOptions = () => {
               className="text-sm font-medium text-gray-700 cursor-pointer"
             >
               Exclude chain restaurants
+            </Label>
+          </div>
+
+          {/* Exclude Cafes */}
+          <div className="mt-4 flex items-center space-x-2">
+            <Checkbox
+              id="exclude-cafe"
+              checked={currentExcludeCafe}
+              onCheckedChange={handleExcludeCafeChange}
+            />
+            <Label
+              htmlFor="exclude-cafe"
+              className="text-sm font-medium text-gray-700 cursor-pointer"
+            >
+              Exclude cafes and coffee shops
             </Label>
           </div>
         </CardContent>

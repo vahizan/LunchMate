@@ -10,7 +10,8 @@ const DEFAULT_FILTERS: Filters = {
   dietary: [],
   priceLevel: 2,
   historyDays: 14,
-  excludeChains: false
+  excludeChains: false,
+  excludeCafe: false
 };
 
 const DEFAULT_LOCATION: Location = {

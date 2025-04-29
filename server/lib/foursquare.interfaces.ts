@@ -10,6 +10,7 @@ export interface Location {
     dietary?: string[];
     priceLevel?: number;
     excludeChains?: boolean;
+    excludeCafe?: boolean;
   }
   export interface PlacePhoto {
       id: string;

@@ -49,8 +49,8 @@ export enum FOOD_CATEGORIES {
 export const FOOD_CATEGORY_IDS: Record<string, string> = {
     // Main food categories
     'restaurant': '13065',
-    'food': '13000',
     'cafe': '13032',
+    'food': '13000',
     'hawker': '13266', // Hawker center/food court
     'food stall': '13266', // Using same ID as hawker
     'bakery': '13002',

@@ -1,5 +1,5 @@
 import fetch from 'node-fetch';
-import { FOOD_CATEGORY_IDS } from '@shared/types';
+import { FOOD_CATEGORIES, FOOD_CATEGORY_IDS } from '@shared/types';
 import { config } from 'dotenv';
 import { Location, Place, PlacePhoto, FilterOptions } from './foursquare.interfaces';
 
@@ -28,16 +28,27 @@ function toRad(degrees: number): number {
   return degrees * (Math.PI/180);
 }
 
+const categoryIds: string[] = [];
+  
+// Add base food category
+categoryIds.push(FOOD_CATEGORY_IDS[FOOD_CATEGORIES.RESTAURANT]);
+categoryIds.push(FOOD_CATEGORY_IDS[FOOD_CATEGORIES.FOOD_COURT]);
+categoryIds.push(FOOD_CATEGORY_IDS[FOOD_CATEGORIES.FOOD_TRUCK]);
+categoryIds.push(FOOD_CATEGORY_IDS[FOOD_CATEGORIES.FOOD]);
+categoryIds.push(FOOD_CATEGORY_IDS[FOOD_CATEGORIES.HAWKER]);
+
 // Build categories string from filters
 function buildCategoriesString(filters: FilterOptions): string | undefined {
   // Foursquare category IDs for food establishments
   // Reference: https://developer.foursquare.com/docs/categories
 
-  const categoryIds: string[] = [];
   
-  // Add base food category
-  categoryIds.concat([FOOD_CATEGORY_IDS['restaurant'], FOOD_CATEGORY_IDS['food'],FOOD_CATEGORY_IDS['hawker'],FOOD_CATEGORY_IDS['food stall']]);
-  categoryIds.push(FOOD_CATEGORY_IDS['cafe']);
+  // Add cafe category only if not excluded
+  console.log("exclude cage", filters.excludeCafe);
+  if (!filters.excludeCafe) {
+    console.log("filters backend", filters);
+    categoryIds.push(FOOD_CATEGORIES.CAFE);
+  }
   
   // Add cuisine categories if available
   if (filters.cuisines && filters.cuisines.length > 0) {
@@ -164,6 +175,7 @@ export async function fetchRestaurants(
       const distance = place.distance ? place.distance / 1000 : calculateDistance(location, placeLocation);
       
       // Convert to our Restaurant format
+      console.log("types", types);
       return {
         place_id: place.fsq_id,
         name: place.name,

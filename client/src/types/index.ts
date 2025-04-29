@@ -13,6 +13,7 @@ export interface Filters {
   priceLevel: number;
   historyDays: number;
   excludeChains: boolean;
+  excludeCafe: boolean;
 }
 
 // Restaurant type - based on Google Places API with some additions

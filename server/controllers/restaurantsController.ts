@@ -21,6 +21,7 @@ export async function getRestaurants(req: Request, res: Response) {
       dietary: z.array(z.string()).optional(),
       priceLevel: z.number().optional(),
       excludeChains: z.boolean().optional(),
+      excludeCafe: z.boolean().optional(),
       page: z.number().or(z.string().transform(s => parseInt(s))).optional(),
       pageSize: z.number().or(z.string().transform(s => parseInt(s))).optional(),
     });
@@ -43,7 +44,8 @@ export async function getRestaurants(req: Request, res: Response) {
           : [req.query.dietary as string]
         : [],
       priceLevel: req.query.priceLevel ? parseInt(req.query.priceLevel as string) : undefined,
-      excludeChains: req.query.excludeChains === 'true',
+      excludeChains: Boolean(req.query.excludeChains),
+      excludeCafe: Boolean(req.query.excludeCafe),
       page: req.query.page ? parseInt(req.query.page as string) : 1,
       pageSize: req.query.pageSize ? parseInt(req.query.pageSize as string) : 10,
     };
