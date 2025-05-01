@@ -47,7 +47,7 @@ function buildCategoriesString(filters: FilterOptions): string | undefined {
   console.log("exclude cage", filters.excludeCafe);
   if (!filters.excludeCafe) {
     console.log("filters backend", filters);
-    categoryIds.push(FOOD_CATEGORIES.CAFE);
+    categoryIds.push(FOOD_CATEGORY_IDS[FOOD_CATEGORIES.CAFE]);
   }
   
   // Add cuisine categories if available
@@ -126,6 +126,7 @@ export async function fetchRestaurants(
       params.append('max_price', maxPrice.toString());
     }
     
+    console.log("params", params.toString());
     // Make the request
     const response = await fetchAny(`${baseUrl}?${params.toString()}`, {
       headers: {

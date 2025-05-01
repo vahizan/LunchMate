@@ -18,7 +18,7 @@ export class HybridPlacesProvider implements PlacesProvider {
     // Initialize both providers
     this.foursquareProvider = new FoursquareProvider();
     this.googleProvider = new GooglePlacesProvider();
-    this.googleApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    this.googleApiKey = process.env.VITE_GOOGLE_MAPS_API_KEY;
     
     // Track loading state
     this.checkLoadingState();

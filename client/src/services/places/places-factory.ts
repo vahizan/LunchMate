@@ -21,7 +21,7 @@ export class PlacesFactory {
     this.providers.set('hybrid', new HybridPlacesProvider());
     
     // Try to get the active provider from environment or config
-    const configProvider = import.meta.env.VITE_PLACES_PROVIDER as PlacesProviderType;
+    const configProvider = process.env.VITE_PLACES_PROVIDER as PlacesProviderType;
     if (configProvider && (configProvider === 'google' || configProvider === 'foursquare' || configProvider === 'hybrid')) {
       this.activeProvider = configProvider;
       console.log(`Using places provider from config: ${this.activeProvider}`);

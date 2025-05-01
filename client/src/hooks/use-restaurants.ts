@@ -55,20 +55,39 @@ export function useRestaurants() {
   const query = useQuery({
     queryKey: [queryKeyString],
     queryFn: async () => {
-      console.log("useRestaurants - queryFn called with location:", location);
-      console.log("useRestaurants - queryFn called with filters:", filters);
+      // Only log in development
+      if (import.meta.env.DEV) {
+        console.log("useRestaurants - queryFn called with location:", location);
+        console.log("useRestaurants - location lat type:", location?.lat !== undefined ? typeof location.lat : "undefined");
+        console.log("useRestaurants - location lng type:", location?.lng !== undefined ? typeof location.lng : "undefined");
+        console.log("useRestaurants - queryFn called with filters:", filters);
+      }
       
-      // Only fetch if we have a valid location
-      if (!location?.lat || !location?.lng) {
+      // Check if location coordinates are valid (including 0 as valid)
+      // This properly handles the case where lat or lng is 0
+      if (location?.lat === undefined || location?.lng === undefined) {
         setIsFetchData(false);
-        console.log("useRestaurants - invalid location, returning empty array");
+        if (import.meta.env.DEV) {
+          console.log("useRestaurants - invalid location, returning empty array");
+          console.log("useRestaurants - location?.lat:", location?.lat);
+          console.log("useRestaurants - location?.lng:", location?.lng);
+        }
         return { results: [], pagination: { hasMore: false, page: 1, pageSize: 10, totalCount: 0, totalPages: 0 } };
       }
       
       // Build query parameters to match what the server expects
+      if (import.meta.env.DEV) {
+        console.log("useRestaurants - building params with lat:", location.lat, "type:", typeof location.lat);
+        console.log("useRestaurants - building params with lng:", location.lng, "type:", typeof location.lng);
+      }
+      
+      // Ensure lat and lng are numbers before converting to string
+      const lat = Number(location.lat);
+      const lng = Number(location.lng);
+      
       const params = new URLSearchParams({
-        lat: location.lat.toString(),
-        lng: location.lng.toString(),
+        lat: lat.toString(),
+        lng: lng.toString(),
         radius: filters.radius.toString(),
         page: page.toString(),
         pageSize: '10' // Fixed page size

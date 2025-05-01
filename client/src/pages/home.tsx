@@ -1,9 +1,8 @@
-import { useContext, useEffect } from "react";
+import { useEffect } from "react";
 import { useLocation } from "wouter";
 import LocationInput from "@/components/LocationInput";
 import FilterOptions from "@/components/FilterOptions";
-import SuggestionResults from "@/components/SuggestionResults";
-import { AppContext, useAppContext } from "@/context/AppContext";
+import {  useAppContext } from "@/context/AppContext";
 import { Button } from "@/components/ui/button";
 import { useRestaurants } from "@/hooks/use-restaurants";
 import { Shuffle, Search } from "lucide-react";
@@ -48,7 +47,7 @@ export default function Home() {
         <Button
           onClick={pickRandomRestaurant}
           className="bg-[#FC642D] hover:bg-[#FC642D]/90 text-white py-6 flex-1 text-lg font-medium"
-          disabled={!location?.lat || !location?.lng}
+          disabled={location?.lat === undefined || location?.lng === undefined}
         >
           <Shuffle className="mr-2 h-5 w-5" />
           Random Pick
@@ -56,7 +55,7 @@ export default function Home() {
         <Button
           onClick={handleGetSuggestions}
           className="bg-primary hover:bg-primary/90 text-white py-6 flex-1 text-lg font-medium"
-          disabled={!location?.lat || !location?.lng}
+          disabled={location?.lat === undefined || location?.lng === undefined}
         >
           <Search className="mr-2 h-5 w-5" />
           Get Suggestions

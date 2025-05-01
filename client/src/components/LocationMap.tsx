@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef } from "react";
-import { AppContext } from "@/context/AppContext";
+import { AppContext, useAppContext } from "@/context/AppContext";
 import { Button } from "@/components/ui/button";
 import { MapPin } from "lucide-react";
 import { usePlaces } from "@/hooks/use-places";
@@ -35,9 +35,8 @@ export const LocationMap = ({ location, onMapClick }: LocationMapProps) => {
   }, [mapLocation, showMap, providerType]);
 
   // Get API key for static map fallback
-  const googleApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-  const foursquareApiKey = import.meta.env.VITE_FOURSQUARE_PLACES_API_KEY;
-  
+  const googleApiKey = process.env.VITE_GOOGLE_MAPS_API_KEY;
+  const foursquareApiKey = process.env.VITE_FOURSQUARE_PLACES_API_KEY;
   // Determine coordinates for static map fallback
   const lat = mapLocation?.lat || 0;
   const lng = mapLocation?.lng || 0;
@@ -61,11 +60,6 @@ export const LocationMap = ({ location, onMapClick }: LocationMapProps) => {
       id="map"
       ref={mapContainerRef}
       className="h-48 bg-gray-100 relative"
-      style={{
-        backgroundImage: getStaticMapUrl(),
-        backgroundSize: 'cover',
-        backgroundPosition: 'center'
-      }}
     >
       <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
         <Button 
