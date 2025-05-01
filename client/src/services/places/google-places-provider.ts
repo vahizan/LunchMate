@@ -1,4 +1,3 @@
-import { useState, useEffect, useCallback } from 'react';
 import { PlacesProvider, PlaceResult } from './types';
 
 // Maps API Loader
@@ -12,7 +11,7 @@ function loadGoogleMapsApi(): Promise<void> {
 
   console.log('Creating new Google Maps API loading promise');
   googleMapsPromise = new Promise((resolve, reject) => {
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    const apiKey = process.env.VITE_GOOGLE_MAPS_API_KEY;
     
     if (!apiKey) {
       const error = new Error('Google Maps API key is missing');
@@ -65,7 +64,7 @@ export class GooglePlacesProvider implements PlacesProvider {
 
   private loadApi(): void {
     console.log('Loading Google Maps API...');
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    const apiKey = process.env.VITE_GOOGLE_MAPS_API_KEY;
     
     if (!apiKey) {
       console.error('Google Maps API key is missing. Check your .env file.');
@@ -197,7 +196,7 @@ export class GooglePlacesProvider implements PlacesProvider {
   }
 
   getPhotoUrl(photoReference: string, maxWidth: number): string {
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    const apiKey = process.env.VITE_GOOGLE_MAPS_API_KEY;
     return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${maxWidth}&photoreference=${photoReference}&key=${apiKey}`;
   }
 }

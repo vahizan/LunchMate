@@ -1,10 +1,70 @@
+export enum FOOD_CATEGORIES {
+  RESTAURANT = 'restaurant',
+  FOOD = 'food',
+  CAFE = 'cafe',
+  HAWKER = 'hawker',
+  FOOD_STALL = 'food stall',
+  BAKERY = 'bakery',
+  BAR = 'bar',
+  BREAKFAST_SPOT = 'breakfast spot',
+  BUFFET = 'buffet',
+  FOOD_TRUCK = 'food truck',
+  DESSERT_SHOP = 'dessert shop',
+  FAST_FOOD = 'fast food',
+  FOOD_COURT = 'food court',
+  JUICE_BAR = 'juice bar',
+  SANDWICH_SHOP = 'sandwich shop',
+  STEAKHOUSE = 'steakhouse',
+  SUSHI_RESTAURANT = 'sushi restaurant',
+  CHINESE = 'chinese',
+  JAPANESE = 'japanese',
+  KOREAN = 'korean',
+  INDIAN = 'indian',
+  THAI = 'thai',
+  VIETNAMESE = 'vietnamese',
+  ITALIAN = 'italian',
+  MEXICAN = 'mexican',
+  AMERICAN = 'american',
+  FRENCH = 'french',
+  SPANISH = 'spanish',
+  GREEK = 'greek',
+  MEDITERRANEAN = 'mediterranean',
+  MIDDLE_EASTERN = 'middle eastern',
+  CARIBBEAN = 'caribbean',
+  BRAZILIAN = 'brazilian',
+  GERMAN = 'german',
+  BRITISH = 'british',
+  IRISH = 'irish',
+  AFRICAN = 'african',
+  SEAFOOD = 'seafood',
+  BBQ = 'bbq',
+  PIZZA = 'pizza',
+  BURGER = 'burger',
+  VEGETARIAN = 'vegetarian',
+  VEGAN = 'vegan',
+  HALAL = 'halal',
+  KOSHER = 'kosher'
+}
+
 export const FOOD_CATEGORY_IDS: Record<string, string> = {
     // Main food categories
     'restaurant': '13065',
-    'food': '13000',
     'cafe': '13032',
+    'food': '13000',
     'hawker': '13266', // Hawker center/food court
     'food stall': '13266', // Using same ID as hawker
+    'bakery': '13002',
+    'bar': '13003',
+    'breakfast spot': '13028',
+    'buffet': '13027',
+    'food truck': '13144',
+    'dessert shop': '13040',
+    'fast food': '13145',
+    'food court': '13052',
+    'juice bar': '13158',
+    'sandwich shop': '13213',
+    'steakhouse': '13383',
+    'sushi restaurant': '13263',
     
     // Cuisine types
     'chinese': '13099',
@@ -17,12 +77,25 @@ export const FOOD_CATEGORY_IDS: Record<string, string> = {
     'mexican': '13303',
     'american': '13063',
     'french': '13148',
+    'spanish': '13256',
+    'greek': '13177',
+    'mediterranean': '13177', // Using Greek as closest match
+    'middle eastern': '13270',
+    'caribbean': '13089',
+    'brazilian': '13076',
+    'german': '13167',
+    'british': '13082',
+    'irish': '13207',
+    'african': '13059',
+    'seafood': '13338',
+    'bbq': '13026',
+    'pizza': '13064',
+    'burger': '13072',
     
     // Dietary options
     'vegetarian': '13377',
     'vegan': '13377', // Using vegetarian as closest match
     'halal': '13334',
     'kosher': '13334', // Using halal as closest match
-    'gluten-free': '13334', // No specific category, using dietary restrictions
   };
   

@@ -8,7 +8,7 @@ export class FoursquareProvider implements PlacesProvider {
   private map: any = null;
 
   constructor() {
-    this.apiKey = import.meta.env.VITE_FOURSQUARE_PLACES_API_KEY;
+    this.apiKey = process.env.VITE_FOURSQUARE_PLACES_API_KEY;
     // Load Foursquare API
     this.loadApi();
     
@@ -174,9 +174,7 @@ export class FoursquareProvider implements PlacesProvider {
    * Autocomplete locations (regions/countries/cities) using Foursquare's autocomplete API
    * This should be used for general location searches (not specific places like restaurants)
    */
-  private async autocompleteLocations(query: string): Promise<any[]> {
-    console.log('Autocompleting locations with Foursquare for:', query);
-    
+  private async autocompleteLocations(query: string): Promise<any[]> {    
     try {
       // Build the URL with parameters
       const params = new URLSearchParams({

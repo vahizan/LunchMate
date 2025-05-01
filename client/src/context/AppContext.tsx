@@ -8,7 +8,9 @@ const DEFAULT_FILTERS: Filters = {
   cuisines: [],
   dietary: [],
   priceLevel: 2,
-  historyDays: 14
+  historyDays: 14,
+  excludeChains: false,
+  excludeCafe: false
 };
 
 const DEFAULT_LOCATION: Location = {
@@ -81,13 +83,15 @@ export const AppContext = createContext<AppContextType>(defaultAppContext);
 AppContext.displayName = 'AppContext';
 
  const AppProvider: FunctionComponent<PropsWithChildren> = ({ children }) =>  {
+  console.log("AppProvider initialized - this should only appear ONCE");
   const { toast } = useToast();
   
   // User preferences
   const [userPreferences, setUserPreferences] = useState<UserPreferences | null>(null);
   
   // Restaurants and search
-  const [location, setLocation] = useState<Location>();
+  // Initialize with DEFAULT_LOCATION instead of undefined
+  const [location, setLocation] = useState<Location>(DEFAULT_LOCATION);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   
@@ -105,21 +109,54 @@ AppContext.displayName = 'AppContext';
   
   // Load saved data from localStorage on mount
   useEffect(() => {
+    console.log("AppProvider - Loading data from localStorage");
     try {
       const savedPrefs = localStorage.getItem('userPreferences');
-      if (savedPrefs) setUserPreferences(JSON.parse(savedPrefs));
+      if (savedPrefs) {
+        console.log("AppProvider - Found userPreferences in localStorage");
+        setUserPreferences(JSON.parse(savedPrefs));
+      }
       
       const savedFavorites = localStorage.getItem('favorites');
-      if (savedFavorites) setFavorites(JSON.parse(savedFavorites));
+      if (savedFavorites) {
+        console.log("AppProvider - Found favorites in localStorage");
+        setFavorites(JSON.parse(savedFavorites));
+      }
       
       const savedHistory = localStorage.getItem('visitHistory');
-      if (savedHistory) setVisitHistory(JSON.parse(savedHistory));
+      if (savedHistory) {
+        console.log("AppProvider - Found visitHistory in localStorage");
+        setVisitHistory(JSON.parse(savedHistory));
+      }
       
       const savedFilters = localStorage.getItem('filters');
-      if (savedFilters) setFilters(JSON.parse(savedFilters));
+      if (savedFilters) {
+        console.log("AppProvider - Found filters in localStorage");
+        setFilters(JSON.parse(savedFilters));
+      }
       
       const savedLocation = localStorage.getItem('location');
-      if (savedLocation) setLocation(JSON.parse(savedLocation));
+      if (savedLocation) {
+        try {
+          const parsedLocation = JSON.parse(savedLocation);
+          
+         
+          
+          // Ensure lat and lng are numbers
+          const validatedLocation = {
+            ...parsedLocation,
+            lat: Number(parsedLocation.lat),
+            lng: Number(parsedLocation.lng)
+          };
+         
+          
+          setLocation(validatedLocation);
+        } catch (error) {
+          console.error("Error parsing location from localStorage:", error);
+          // Fall back to default location on error
+          setLocation(DEFAULT_LOCATION);
+        }
+      }
     } catch (error) {
       console.error('Error loading data from localStorage:', error);
     }
@@ -144,8 +181,20 @@ AppContext.displayName = 'AppContext';
   }, [filters]);
   
   useEffect(() => {
-    if (location?.lat && location?.lng) {
-      localStorage.setItem('location', JSON.stringify(location));
+  
+    // Save location if it exists, regardless of whether lat/lng are 0
+    // This fixes the issue where locations with 0 coordinates weren't being saved
+    if (location && location.lat !== undefined && location.lng !== undefined) {
+      // Ensure lat and lng are stored as numbers
+      const locationToStore = {
+        ...location,
+        lat: Number(location.lat),
+        lng: Number(location.lng)
+      };
+      
+     
+      
+      localStorage.setItem('location', JSON.stringify(locationToStore));
     }
   }, [location]);
   

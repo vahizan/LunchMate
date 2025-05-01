@@ -1,24 +1,12 @@
 import fetch from 'node-fetch';
-import { FOOD_CATEGORY_IDS } from '@shared/types';
+import { FOOD_CATEGORIES, FOOD_CATEGORY_IDS } from '@shared/types';
 import { config } from 'dotenv';
+import { Location, Place, PlacePhoto, FilterOptions } from './foursquare.interfaces';
+
 // Use any type for now to avoid TypeScript errors
 const fetchAny: any = fetch;
 
-
-// Type for location
-interface Location {
-  lat: number;
-  lng: number;
-}
-
-// Type for filter options
-interface FilterOptions {
-  cuisines?: string[];
-  dietary?: string[];
-  priceLevel?: number;
-}
-
-// Get Foursquare API key from environment variables
+// Get Foursquare API key from environment variabless
 const apiKey = config().parsed?.FOURSQUARE_API_KEY || '';
 
 // Helper function to calculate distance between two coordinates (Haversine formula)
@@ -40,19 +28,27 @@ function toRad(degrees: number): number {
   return degrees * (Math.PI/180);
 }
 
+const categoryIds: string[] = [];
+  
+// Add base food category
+categoryIds.push(FOOD_CATEGORY_IDS[FOOD_CATEGORIES.RESTAURANT]);
+categoryIds.push(FOOD_CATEGORY_IDS[FOOD_CATEGORIES.FOOD_COURT]);
+categoryIds.push(FOOD_CATEGORY_IDS[FOOD_CATEGORIES.FOOD_TRUCK]);
+categoryIds.push(FOOD_CATEGORY_IDS[FOOD_CATEGORIES.FOOD]);
+categoryIds.push(FOOD_CATEGORY_IDS[FOOD_CATEGORIES.HAWKER]);
+
 // Build categories string from filters
 function buildCategoriesString(filters: FilterOptions): string | undefined {
   // Foursquare category IDs for food establishments
   // Reference: https://developer.foursquare.com/docs/categories
 
-  const categoryIds: string[] = [];
   
-  // Add base food category
-  categoryIds.push(FOOD_CATEGORY_IDS['restaurant']);
-  categoryIds.push(FOOD_CATEGORY_IDS['food']);
-  categoryIds.push(FOOD_CATEGORY_IDS['cafe']);
-  categoryIds.push(FOOD_CATEGORY_IDS['hawker']);
-  categoryIds.push(FOOD_CATEGORY_IDS['food stall']);
+  // Add cafe category only if not excluded
+  console.log("exclude cage", filters.excludeCafe);
+  if (!filters.excludeCafe) {
+    console.log("filters backend", filters);
+    categoryIds.push(FOOD_CATEGORY_IDS[FOOD_CATEGORIES.CAFE]);
+  }
   
   // Add cuisine categories if available
   if (filters.cuisines && filters.cuisines.length > 0) {
@@ -130,8 +126,7 @@ export async function fetchRestaurants(
       params.append('max_price', maxPrice.toString());
     }
     
-    console.log("PARAMS", params);
-
+    console.log("params", params.toString());
     // Make the request
     const response = await fetchAny(`${baseUrl}?${params.toString()}`, {
       headers: {
@@ -148,14 +143,25 @@ export async function fetchRestaurants(
     console.log(`Foursquare returned ${data.results?.length || 0} results`);
     
     // Process results and convert to our Restaurant format
-    const results = data.results || [];
-    return results.map((place: any) => {
+    let results: Place[] = data.results || [];
+    
+    // Filter out chain restaurants if requested
+    if (filters.excludeChains) {
+      console.log('Filtering out chain restaurants');
+      results = results.filter(place => !place.chains || place.chains.length === 0);
+    }
+    
+    return results.map((place: Place) => {
       // Extract the first photo if available
-      const photos = place.photos?.length > 0 ? [{
-        photo_reference: place.photos[0].id,
-        height: place.photos[0].height,
-        width: place.photos[0].width
-      }] : undefined;
+      const photos = place.photos?.map((photoDetails :PlacePhoto) => {
+        return {
+          id: photoDetails?.id,
+          created_at: photoDetails?.created_at,
+          small: `${photoDetails?.prefix}${(200/photoDetails.height)*photoDetails.width}x${200}${photoDetails?.suffix}`,
+          large: `${photoDetails?.prefix}${(600/photoDetails.height)*photoDetails.width}x${600}${photoDetails?.suffix}`,
+          xlarge: `${photoDetails?.prefix}${photoDetails.height}x${photoDetails.width}${photoDetails?.suffix}`,
+        }
+      });
       
       // Extract place types from categories
       const types = place.categories?.map((cat: any) => cat.name.toLowerCase()) || [];
@@ -170,6 +176,7 @@ export async function fetchRestaurants(
       const distance = place.distance ? place.distance / 1000 : calculateDistance(location, placeLocation);
       
       // Convert to our Restaurant format
+      console.log("types", types);
       return {
         place_id: place.fsq_id,
         name: place.name,
@@ -180,6 +187,7 @@ export async function fetchRestaurants(
           place.location?.postcode,
           place.location?.country
         ].filter(Boolean).join(', '),
+        menu: place?.menu,
         vicinity: place.location?.address,
         rating: place.rating ? place.rating / 2 : undefined, // Convert from 10 to 5 scale
         user_ratings_total: place.stats?.total_ratings || 0,
@@ -187,12 +195,16 @@ export async function fetchRestaurants(
         types,
         photos,
         opening_hours: place.hours ? {
+          hours: place?.hours,
           open_now: place.hours?.is_open_now || false,
           weekday_text: place.hours?.display || []
         } : undefined,
         geometry: {
           location: placeLocation
         },
+        popularity: place?.popularity,
+        metadata: place?.stats,
+        description: place?.description,
         distance,
         formatted_phone_number: place.tel,
         website: place.website,
@@ -272,6 +284,46 @@ export async function fetchRestaurantDetails(placeId: string): Promise<any> {
     };
   } catch (error) {
     console.error('Error fetching restaurant details from Foursquare:', error);
+    throw error;
+  }
+}
+
+// Fetch images for a specific place
+export async function fetchPlaceImages(placeId: string): Promise<any[]> {
+  try {
+    if (!apiKey) {
+      console.error('Foursquare API key is missing. Check your environment variables.');
+      throw new Error('Foursquare API key is missing');
+    }
+    
+    // First, we need to get the place details which include the photos
+    const url = `https://api.foursquare.com/v3/places/${placeId}/photos`;
+    
+    const response = await fetchAny(url, {
+      headers: {
+        'Authorization': apiKey,
+        'Accept': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Foursquare API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // Process and return the photos in a standardized format
+    return data.map((photo: any) => ({
+      photo_reference: photo.id,
+      height: photo.height,
+      width: photo.width,
+      prefix: photo.prefix,
+      suffix: photo.suffix,
+      created_at: photo.created_at,
+      url: `${photo.prefix}original${photo.suffix}` // Construct the full URL for the original size image
+    }));
+  } catch (error) {
+    console.error('Error fetching place images from Foursquare:', error);
     throw error;
   }
 }

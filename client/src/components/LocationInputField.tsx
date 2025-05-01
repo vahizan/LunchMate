@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState } from "react";
-import { AppContext } from "@/context/AppContext";
+import { AppContext, useAppContext } from "@/context/AppContext";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { AlertCircle } from "lucide-react";
@@ -12,7 +12,7 @@ interface LocationInputFieldProps {
 }
 
 export function LocationInputField({ onLocationSelected }: LocationInputFieldProps) {
-  const { location, setLocation } = useContext(AppContext);
+  const { location, setLocation } = useAppContext();
   const inputRef = useRef<HTMLInputElement>(null);
   const { initAutocomplete, isLoaded, error, providerType } = usePlaces();
   const [autocompleteError, setAutocompleteError] = useState<string | null>(null);
@@ -20,9 +20,22 @@ export function LocationInputField({ onLocationSelected }: LocationInputFieldPro
   // Initialize Google Places Autocomplete
   useEffect(() => {
     console.log(`LocationInputField: Autocomplete useEffect triggered (using ${providerType} provider)`);
-    const apiKey = providerType === 'google'
-      ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY
-      : import.meta.env.VITE_FOURSQUARE_PLACES_API_KEY;
+    
+    // Determine which API key to use based on provider
+    let apiKey;
+    let effectiveProvider = providerType;
+    
+    // For hybrid provider, we use Foursquare for autocomplete
+    if (providerType === 'hybrid') {
+      apiKey = import.meta.env.VITE_FOURSQUARE_PLACES_API_KEY;
+      // Use a string for logging purposes only, not for type assignment
+      const providerForLogging = 'foursquare (via hybrid)';
+      console.log(`Using ${providerForLogging} for autocomplete`);
+    } else if (providerType === 'google') {
+      apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    } else {
+      apiKey = import.meta.env.VITE_FOURSQUARE_PLACES_API_KEY;
+    }
     
     // Clear any previous errors
     setAutocompleteError(null);
@@ -50,23 +63,38 @@ export function LocationInputField({ onLocationSelected }: LocationInputFieldPro
         const autocomplete = initAutocomplete(inputRef.current, (place) => {
           console.log('LocationInputField: Place selected:', place);
           if (place.geometry?.location) {
+            // Extract coordinates and ensure they're numbers
+            const lat = Number(place.geometry.location.lat());
+            const lng = Number(place.geometry.location.lng());
+            
             const newLocation = {
               address: place.formatted_address || place.name || "",
-              lat: place.geometry.location.lat(),
-              lng: place.geometry.location.lng(),
+              lat: lat,
+              lng: lng,
             };
             
-            console.log('LocationInputField: Setting location with coordinates:', {
-              lat: newLocation.lat,
-              lng: newLocation.lng
-            });
+            // Only log in development
+            if (import.meta.env.DEV) {
+              console.log('LocationInputField: Setting location with coordinates:', {
+                lat: newLocation.lat,
+                lng: newLocation.lng,
+                latType: typeof newLocation.lat,
+                lngType: typeof newLocation.lng
+              });
+              
+              // Check for zero values
+              if (newLocation.lat === 0 || newLocation.lng === 0) {
+                console.log("LocationInputField: Location has 0 values (this is valid):", newLocation);
+              }
+              
+              console.log("LocationInputField - Setting location with new object:", newLocation);
+            }
             
             // Create a new object to ensure reference changes
-            console.log("LocationInputField - Setting location with new object:", newLocation);
-            setLocation({...newLocation});
+            setLocation(newLocation);
             
             if (onLocationSelected) {
-              onLocationSelected({...newLocation});
+              onLocationSelected(newLocation);
             }
           } else {
             console.warn('LocationInputField: Selected place has no geometry data');
