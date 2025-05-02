@@ -48,6 +48,26 @@ export interface Restaurant {
   website?: string;
   open_now?: boolean;
   
+  // Additional Foursquare fields
+  description?: string;
+  menu?: string;
+  popularity?: number;
+  features?: {
+    payment?: {
+      credit_cards?: boolean;
+      digital_wallet?: boolean;
+    };
+    food_and_drink?: {
+      alcohol?: boolean;
+      breakfast?: boolean;
+      dinner?: boolean;
+      lunch?: boolean;
+      takeout?: boolean;
+      delivery?: boolean;
+      reservations?: boolean;
+    };
+  };
+  
   // Custom additions
   votes?: number;
   hasVoted?: boolean;

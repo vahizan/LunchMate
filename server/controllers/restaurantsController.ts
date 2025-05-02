@@ -7,6 +7,88 @@ import {
   fetchPlaceImages as fetchFoursquareImages
 } from "../lib/foursquare";
 
+// Get all restaurant IDs
+export async function getRestaurantIds(req: Request, res: Response) {
+  try {
+    const locationSchema = z.object({
+      lat: z.number().or(z.string().transform(s => parseFloat(s))),
+      lng: z.number().or(z.string().transform(s => parseFloat(s))),
+      radius: z.number().or(z.string().transform(s => parseFloat(s))).optional(),
+      fieldsToFetch: z.string().optional()
+    });
+
+    const filtersSchema = z.object({
+      cuisines: z.array(z.string()).optional(),
+      dietary: z.array(z.string()).optional(),
+      priceLevel: z.number().optional(),
+      excludeChains: z.boolean().optional(),
+      excludeCafe: z.boolean().optional(),
+    });
+
+    const queryParams = {
+      lat: req.query.lat,
+      lng: req.query.lng,
+      radius: req.query.radius || 1000,
+      fieldsToFetch: 'fsq_id',
+    };
+
+    const filters = {
+      cuisines: req.query.cuisines ?
+        Array.isArray(req.query.cuisines)
+          ? req.query.cuisines
+          : [req.query.cuisines as string]
+        : [],
+      dietary: req.query.dietary ?
+        Array.isArray(req.query.dietary)
+          ? req.query.dietary
+          : [req.query.dietary as string]
+        : [],
+      priceLevel: req.query.priceLevel ? parseInt(req.query.priceLevel as string) : undefined,
+      excludeChains: Boolean(req.query.excludeChains),
+      excludeCafe: Boolean(req.query.excludeCafe),
+    };
+
+    const location = locationSchema.parse(queryParams);
+    const validatedFilters = filtersSchema.parse(filters);
+
+    // Determine which API to use based on environment variable
+    // Default to Foursquare if not specified
+    const useGoogleMaps = process.env.PLACES_PROVIDER === 'google';
+    
+    console.log(`Using ${useGoogleMaps ? 'Google Maps' : 'Foursquare'} API for restaurant ID search`);
+    
+    // For Google Maps, we don't have a way to fetch only IDs, so we'll use the regular function
+    // For Foursquare, we'll use the modified function with fieldsToFetch parameter
+    const restaurants = await (useGoogleMaps
+      ? fetchGoogleRestaurants(
+          { lat: location.lat, lng: location.lng },
+          location.radius ? location.radius * 1000 : 1000, // Convert km to meters
+          validatedFilters
+        )
+      : fetchFoursquareRestaurants(
+          { lat: location.lat, lng: location.lng },
+          location.radius ? location.radius * 1000 : 1000, // Convert km to meters
+          validatedFilters,
+          location.fieldsToFetch // Only fetch the specified fields
+        )
+    );
+
+    // For Foursquare, we only need to extract the fsq_id
+    // For Google Maps, we need to extract the place_id
+    const results = restaurants.map(restaurant => ({
+      fsq_id: restaurant.place_id || restaurant.fsq_id
+    }));
+    
+    res.json({
+      results,
+      count: results.length
+    });
+  } catch (error) {
+    console.error("Error fetching restaurant IDs:", error);
+    res.status(400).json({ error: "Invalid request parameters" });
+  }
+}
+
 // Get all restaurants
 export async function getRestaurants(req: Request, res: Response) {
   try {
@@ -161,6 +243,7 @@ export async function getRestaurantImages(req: Request, res: Response) {
 // Register restaurant routes
 export function registerRestaurantRoutes(app: any) {
   app.get("/api/restaurants", getRestaurants);
+  app.get("/api/restaurants/ids", getRestaurantIds);
   app.get("/api/restaurants/:id", getRestaurantById);
   app.get("/api/restaurants/:id/images", getRestaurantImages);
 }

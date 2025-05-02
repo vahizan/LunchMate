@@ -2,31 +2,23 @@ import fetch from 'node-fetch';
 import { FOOD_CATEGORIES, FOOD_CATEGORY_IDS } from '@shared/types';
 import { config } from 'dotenv';
 import { Location, Place, PlacePhoto, FilterOptions } from './foursquare.interfaces';
+import {
+  normalizeFieldsInput,
+  mapToFoursquareFields,
+  buildRequestParams,
+  makeApiRequest,
+  filterResults,
+  processPlace,
+  defaultFields,
+  convertPriceLevel,
+  calculateDistance
+} from './foursquare.utils';
 
 // Use any type for now to avoid TypeScript errors
 const fetchAny: any = fetch;
 
-// Get Foursquare API key from environment variabless
+// Get Foursquare API key from environment variables
 const apiKey = config().parsed?.FOURSQUARE_API_KEY || '';
-
-// Helper function to calculate distance between two coordinates (Haversine formula)
-function calculateDistance(location1: Location, location2: Location): number {
-  const R = 6371; // Earth's radius in km
-  const dLat = toRad(location2.lat - location1.lat);
-  const dLng = toRad(location2.lng - location1.lng);
-  
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(toRad(location1.lat)) * Math.cos(toRad(location2.lat)) * 
-    Math.sin(dLng/2) * Math.sin(dLng/2);
-  
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-}
-
-function toRad(degrees: number): number {
-  return degrees * (Math.PI/180);
-}
 
 const categoryIds: string[] = [];
   
@@ -73,19 +65,17 @@ function buildCategoriesString(filters: FilterOptions): string | undefined {
   return categoryIds.length > 0 ? categoryIds.join(',') : undefined;
 }
 
-// Convert Foursquare price level to Google price level equivalent
-function convertPriceLevel(fsqPriceLevel: number): number {
-  // Foursquare uses 1-4 scale, Google uses 0-4 scale
-  // Adjust accordingly
-  return Math.min(fsqPriceLevel, 4);
-}
 
 // Fetch restaurants from Foursquare Places API
+/**
+ * Fetches restaurants from Foursquare Places API
+ */
 export async function fetchRestaurants(
   location: Location,
   radius: number = 1000,
   filters: FilterOptions = {},
-  limit: number = 50,
+  fieldsToFetch: string | string[] = defaultFields,
+  limit?: number,
 ): Promise<any[]> {
   try {
     console.log('Foursquare API key loaded:', apiKey ? 'API key is present' : 'API key is missing');
@@ -100,117 +90,37 @@ export async function fetchRestaurants(
     // Build the URL for places search
     const baseUrl = 'https://api.foursquare.com/v3/places/search';
     
+    // Normalize fields input
+    const fieldsArray = normalizeFieldsInput(fieldsToFetch);
     
-    // Build query parameters
-    const params = new URLSearchParams({
-      ll: `${location.lat},${location.lng}`,
-      radius: radius.toString(),
-      limit: limit.toString(), 
-      sort: 'distance', // Sort by distance
-      fields: 'fsq_id,name,location,geocodes,categories,distance,rating,price,photos,hours,website,tel,stats',
-    });
-    
-    // Add categories if available
-    const categories = buildCategoriesString(filters);
-    if (categories) {
-      params.append('categories', categories);
+    // Handle special case for 'fsq_id' only
+    if (fieldsArray.length === 1 && fieldsArray[0] === 'fsq_id') {
+      // If only fsq_id is requested, just fetch that field
+      const params = buildRequestParams(location, radius, filters, 'fsq_id', buildCategoriesString, limit);
+      console.log("params", params.toString());
+      
+      const data = await makeApiRequest(`${baseUrl}?${params.toString()}`, apiKey, fetchAny);
+      
+      // Filter and return just the IDs
+      const results = filterResults(data.results || [], filters);
+      return results.map(place => ({ place_id: place.fsq_id }));
     }
     
-    // Add price level filter if specified
-    if (filters.priceLevel !== undefined) {
-      // Foursquare uses 1-4 scale, where 1 is least expensive
-      // Convert our price level to Foursquare's scale
-      const minPrice = Math.max(filters.priceLevel - 1, 1);
-      const maxPrice = filters.priceLevel;
-      params.append('min_price', minPrice.toString());
-      params.append('max_price', maxPrice.toString());
-    }
+    // For normal case, map fields and build request
+    const fsqFieldsString = mapToFoursquareFields(fieldsArray);
+    const params = buildRequestParams(location, radius, filters, fsqFieldsString, buildCategoriesString, limit);
     
     console.log("params", params.toString());
+    
     // Make the request
-    const response = await fetchAny(`${baseUrl}?${params.toString()}`, {
-      headers: {
-        'Authorization': apiKey,
-        'Accept': 'application/json'
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Foursquare API error: ${response.status}`);
-    }
-    
-    const data = await response.json();
+    const data = await makeApiRequest(`${baseUrl}?${params.toString()}`, apiKey, fetchAny);
     console.log(`Foursquare returned ${data.results?.length || 0} results`);
     
-    // Process results and convert to our Restaurant format
-    let results: Place[] = data.results || [];
+    // Filter results
+    const filteredResults = filterResults(data.results || [], filters);
     
-    // Filter out chain restaurants if requested
-    if (filters.excludeChains) {
-      console.log('Filtering out chain restaurants');
-      results = results.filter(place => !place.chains || place.chains.length === 0);
-    }
-    
-    return results.map((place: Place) => {
-      // Extract the first photo if available
-      const photos = place.photos?.map((photoDetails :PlacePhoto) => {
-        return {
-          id: photoDetails?.id,
-          created_at: photoDetails?.created_at,
-          small: `${photoDetails?.prefix}${(200/photoDetails.height)*photoDetails.width}x${200}${photoDetails?.suffix}`,
-          large: `${photoDetails?.prefix}${(600/photoDetails.height)*photoDetails.width}x${600}${photoDetails?.suffix}`,
-          xlarge: `${photoDetails?.prefix}${photoDetails.height}x${photoDetails.width}${photoDetails?.suffix}`,
-        }
-      });
-      
-      // Extract place types from categories
-      const types = place.categories?.map((cat: any) => cat.name.toLowerCase()) || [];
-      
-      // Convert Foursquare location to our format
-      const placeLocation = {
-        lat: place.geocodes?.main?.latitude || 0,
-        lng: place.geocodes?.main?.longitude || 0
-      };
-      
-      // Calculate distance if not provided by Foursquare
-      const distance = place.distance ? place.distance / 1000 : calculateDistance(location, placeLocation);
-      
-      // Convert to our Restaurant format
-      console.log("types", types);
-      return {
-        place_id: place.fsq_id,
-        name: place.name,
-        formatted_address: [
-          place.location?.address,
-          place.location?.locality,
-          place.location?.region,
-          place.location?.postcode,
-          place.location?.country
-        ].filter(Boolean).join(', '),
-        menu: place?.menu,
-        vicinity: place.location?.address,
-        rating: place.rating ? place.rating / 2 : undefined, // Convert from 10 to 5 scale
-        user_ratings_total: place.stats?.total_ratings || 0,
-        price_level: place.price ? convertPriceLevel(place.price) : undefined,
-        types,
-        photos,
-        opening_hours: place.hours ? {
-          hours: place?.hours,
-          open_now: place.hours?.is_open_now || false,
-          weekday_text: place.hours?.display || []
-        } : undefined,
-        geometry: {
-          location: placeLocation
-        },
-        popularity: place?.popularity,
-        metadata: place?.stats,
-        description: place?.description,
-        distance,
-        formatted_phone_number: place.tel,
-        website: place.website,
-        open_now: place.hours?.is_open_now || false
-      };
-    });
+    // Process each place and return
+    return filteredResults.map((place: Place) => processPlace(place, fieldsArray, location));
     
   } catch (error) {
     console.error('Error fetching restaurants from Foursquare:', error);
@@ -226,7 +136,9 @@ export async function fetchRestaurantDetails(placeId: string): Promise<any> {
       throw new Error('Foursquare API key is missing');
     }
     
-    const url = `https://api.foursquare.com/v3/places/${placeId}`;
+    const fsqFieldsString = mapToFoursquareFields(defaultFields);
+
+    const url = `https://api.foursquare.com/v3/places/${placeId}?fields=${fsqFieldsString}`;
     
     const response = await fetchAny(url, {
       headers: {

@@ -4,6 +4,11 @@ import { useAppContext } from '@/context/AppContext';
 import { Restaurant } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 
+// Define interface for restaurant ID object
+interface RestaurantId {
+  fsq_id: string;
+}
+
 // Define pagination response type
 interface PaginatedResponse {
   results: Restaurant[];
@@ -20,6 +25,7 @@ export function useRestaurants() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { location, filters, visitHistory } = useAppContext();
+  const [isFiltersUpdated, setIsFiltersUpdated] = useState<boolean>();
   const [highlightedRestaurant, setHighlightedRestaurant] = useState<Restaurant| null>(null);
   const [isFetchData, setIsFetchData] = useState<boolean>(true);
 
@@ -27,6 +33,13 @@ export function useRestaurants() {
   const [page, setPage] = useState<number>(1);
   const [hasMore, setHasMore] = useState<boolean>(true);
   const [allRestaurants, setAllRestaurants] = useState<Restaurant[]>([]);
+  const [restaurantIds, setRestaurantIds] = useState<RestaurantId[]>();
+
+  // Track previous location and filters to determine if we need to refetch
+  const [prevLocationFilters, setPrevLocationFilters] = useState<{
+    location: typeof location;
+    filters: typeof filters;
+  } | null>(null);
   
   // Create a stable query key that will change when location or filters change
   // Add a timestamp to ensure the query key changes when filters change
@@ -56,7 +69,7 @@ export function useRestaurants() {
     queryKey: [queryKeyString],
     queryFn: async () => {
       // Only log in development
-      if (import.meta.env.DEV) {
+      if (process.env.DEV) {
         console.log("useRestaurants - queryFn called with location:", location);
         console.log("useRestaurants - location lat type:", location?.lat !== undefined ? typeof location.lat : "undefined");
         console.log("useRestaurants - location lng type:", location?.lng !== undefined ? typeof location.lng : "undefined");
@@ -67,7 +80,7 @@ export function useRestaurants() {
       // This properly handles the case where lat or lng is 0
       if (location?.lat === undefined || location?.lng === undefined) {
         setIsFetchData(false);
-        if (import.meta.env.DEV) {
+        if (process.env.DEV) {
           console.log("useRestaurants - invalid location, returning empty array");
           console.log("useRestaurants - location?.lat:", location?.lat);
           console.log("useRestaurants - location?.lng:", location?.lng);
@@ -76,7 +89,7 @@ export function useRestaurants() {
       }
       
       // Build query parameters to match what the server expects
-      if (import.meta.env.DEV) {
+      if (process.env.DEV) {
         console.log("useRestaurants - building params with lat:", location.lat, "type:", typeof location.lat);
         console.log("useRestaurants - building params with lng:", location.lng, "type:", typeof location.lng);
       }
@@ -151,6 +164,17 @@ export function useRestaurants() {
     enabled: isFetchData,
   });
   
+  // Update prevLocationFilters when query is successful
+  useEffect(() => {
+    if (query.isSuccess && !query.isFetching && allRestaurants.length > 0) {
+      console.log("Query successful, updating prevLocationFilters");
+      setPrevLocationFilters({ location, filters });
+      setIsFiltersUpdated(true);
+    } else {
+      setIsFiltersUpdated(false);
+    }
+  }, [query.isSuccess, query.isFetching, allRestaurants.length, location, filters]);
+  
   // Use all restaurants from state instead of directly from query
   const restaurants = allRestaurants;
   
@@ -181,20 +205,129 @@ export function useRestaurants() {
 
   // Pick random restaurant
   const pickRandomRestaurant = async () => {
-    setIsFetchData(true);
-    if (!filteredRestaurants || filteredRestaurants.length === 0) {
+    try {
+      console.log("Fetching all restaurant IDs for random selection");
+      
+      if (!location || location.lat === undefined || location.lng === undefined) {
+        toast({
+          title: "Location not set",
+          description: "Please set your location first.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Ensure lat and lng are numbers before converting to string
+      const lat = Number(location.lat);
+      const lng = Number(location.lng);
+      
+      // Build query parameters to get all restaurants with only fsq_id
+      const params = new URLSearchParams({
+        lat: lat.toString(),
+        lng: lng.toString(),
+        radius: filters.radius.toString(),
+        fieldsToFetch: 'fsq_id' // Only fetch the ID field
+      });
+      
+      // Add cuisine filters if any
+      if (filters.cuisines.length > 0) {
+        filters.cuisines.forEach(cuisine => {
+          params.append('cuisines', cuisine);
+        });
+      }
+      
+      // Add dietary filters if any
+      if (filters.dietary.length > 0) {
+        filters.dietary.forEach(diet => {
+          params.append('dietary', diet);
+        });
+      }
+      
+      // Add price level filter if set
+      if (filters.priceLevel) {
+        params.append('priceLevel', filters.priceLevel.toString());
+      }
+      
+      // Add exclude chains filter if set
+      if (filters.excludeChains) {
+        params.append('excludeChains', filters.excludeChains.toString());
+      }
+      
+      // Add exclude cafe filter if set
+      if (filters.excludeCafe) {
+        params.append('excludeCafe', filters.excludeCafe.toString());
+      }
+      
+      console.log("filtersUpdated", isFiltersUpdated);
+      if(!restaurantIds || isFiltersUpdated) {
+        // Make the request to get all restaurant IDs
+        console.log("Fetching all restaurant IDs with params:", params.toString());
+        const response = await fetch(`/api/restaurants/ids?${params.toString()}`);
+        const data = await response.json();
+        const allIds: RestaurantId[] = data.results;
+        setRestaurantIds(allIds);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch restaurant IDs');
+        }
+      }
+     
+      
+      
+      // console.log(`Received ${allIds.length} restaurant IDs`);
+      
+      // // Filter out restaurants that have been visited recently
+      // const filteredIds = allIds.filter((item: RestaurantId) => {
+      //   if (filters.historyDays === 0) return true;
+        
+      //   // Find if restaurant was visited within the specified days
+      //   const recentVisit = visitHistory.find(visit => {
+      //     const visitDate = new Date(visit.visitDate);
+      //     const daysSinceVisit = Math.floor((Date.now() - visitDate.getTime()) / (1000 * 60 * 60 * 24));
+      //     return visit.id === item.fsq_id && daysSinceVisit < filters.historyDays;
+      //   });
+        
+      //   return !recentVisit;
+      // });
+      
+      // if (filteredIds.length === 0) {
+      //   toast({
+      //     title: "No restaurants available",
+      //     description: "Try adjusting your filters or changing your location.",
+      //     variant: "destructive"
+      //   });
+      //   return;
+      // }
+      console.log("restaurantIds", restaurantIds);
+      if(!restaurantIds) {
+        throw new Error('Failed to fetch restaurants');
+      }
+
+      const randomIndex = Math.floor(Math.random() * restaurantIds.length);
+      const randomId = restaurantIds[randomIndex].fsq_id;
+      
+      // Fetch full details for the selected restaurant
+      console.log(`Fetching details for restaurant ID: ${randomId}`);
+      const detailsResponse = await fetch(`/api/restaurants/${randomId}`);
+      
+      if (!detailsResponse.ok) {
+        throw new Error('Failed to fetch restaurant details');
+      }
+      
+      const restaurant = await detailsResponse.json();
+      setHighlightedRestaurant(restaurant);
+      
+      // Update previous location and filters
+      setPrevLocationFilters({ location, filters });
+      
+    } catch (error) {
+      console.error("Error picking random restaurant:", error);
       toast({
-        title: "No restaurants available",
-        description: "Try adjusting your filters or changing your location.",
+        title: "Error",
+        description: "Failed to pick a random restaurant. Please try again.",
         variant: "destructive"
       });
-      return;
     }
-    
-    const randomIndex = Math.floor(Math.random() * filteredRestaurants.length);
-    const restaurant = filteredRestaurants[randomIndex];
-    
-    setHighlightedRestaurant(restaurant);
   };
 
   // Add restaurant to team suggestion
@@ -227,6 +360,8 @@ export function useRestaurants() {
   // Force refetch when navigating to results page
   const triggerFetch = () => {
     setIsFetchData(true);
+    // Update previous location and filters when explicitly triggering a fetch
+    setPrevLocationFilters({ location, filters });
     query.refetch();
   };
 
