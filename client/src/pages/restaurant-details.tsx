@@ -2,10 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useContext, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { AppContext } from "@/context/AppContext";
+import { Restaurant } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { 
-  MapPin, Star, Clock, DollarSign, Phone, Globe, ArrowLeft
+import {
+  MapPin, Star, Clock, DollarSign, Phone, Globe, ArrowLeft, Menu
 } from "lucide-react";
 
 export default function RestaurantDetails() {
@@ -13,7 +14,7 @@ export default function RestaurantDetails() {
   const [_, navigate] = useLocation();
   const { addToHistory } = useContext(AppContext);
 
-  const { data: restaurant, isLoading } = useQuery({
+  const { data: restaurant, isLoading } = useQuery<Restaurant>({
     queryKey: [`/api/restaurants/${id}`],
   });
 
@@ -70,9 +71,9 @@ export default function RestaurantDetails() {
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         {restaurant.photos && restaurant.photos[0] && (
           <div className="w-full h-64 relative">
-            <img 
-              src={`https://maps.googleapis.com/maps/api/place/photo?maxwidth=1000&photoreference=${restaurant.photos[0].photo_reference}&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`} 
-              alt={restaurant.name} 
+            <img
+              src={restaurant.photos[0].large}
+              alt={restaurant.name}
               className="w-full h-full object-cover"
             />
           </div>
@@ -143,16 +144,31 @@ export default function RestaurantDetails() {
                 </p>
               )}
             </div>
-          )}
-
-          {restaurant.opening_hours?.weekday_text && (
+            )}
+  
+            {restaurant.opening_hours?.weekday_text && (
             <div className="mt-6">
               <h2 className="text-lg font-semibold mb-2">Opening Hours</h2>
               <ul className="text-gray-600">
-                {restaurant.opening_hours.weekday_text.map((day, index) => (
-                  <li key={index} className="mb-1">{day}</li>
-                ))}
+                {restaurant.opening_hours.weekday_text}
               </ul>
+            </div>
+          )}
+
+          {restaurant.menu && (
+            <div className="mt-6">
+              <h2 className="text-lg font-semibold mb-2">Menu</h2>
+              <p className="flex items-center text-gray-600">
+                <Menu className="w-4 h-4 mr-2" />
+                <a
+                  href={restaurant.menu}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  View Menu
+                </a>
+              </p>
             </div>
           )}
 

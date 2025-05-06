@@ -192,6 +192,8 @@ export async function fetchRestaurantDetails(placeId: string): Promise<any> {
       },
       formatted_phone_number: place.tel,
       website: place.website,
+      menu: place.menu,
+      description: place.description,
       open_now: place.hours?.is_open_now || false
     };
   } catch (error) {
