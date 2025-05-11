@@ -10,8 +10,8 @@ import { toast } from "@/hooks/use-toast";
 import RestaurantCard from "@/components/RestaurantCard";
 
 export default function Home() {
-  const { isLoading, location } = useAppContext();
-  const { pickRandomRestaurant, highlightedRestaurant } = useRestaurants();
+  const { location } = useAppContext();
+  const { pickRandomRestaurant, highlightedRestaurant } = useRestaurants({limit: '50'});
 
   useEffect(() => {
     console.log("highlighted Restaurant", highlightedRestaurant);

@@ -10,30 +10,25 @@ interface RestaurantId {
 }
 
 // Define pagination response type
-interface PaginatedResponse {
+interface RestaurantsResponse {
   results: Restaurant[];
-  pagination: {
-    page: number;
-    pageSize: number;
-    totalCount: number;
-    totalPages: number;
-    hasMore: boolean;
-  };
+  size: number,
+  cursor?: string,
 }
 
-export function useRestaurants() {
+export function useRestaurants(props?: {limit?: string}) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { location, filters, visitHistory } = useAppContext();
   const [isFiltersUpdated, setIsFiltersUpdated] = useState<boolean>();
   const [highlightedRestaurant, setHighlightedRestaurant] = useState<Restaurant| null>(null);
-  const [isFetchData, setIsFetchData] = useState<boolean>(true);
-
-  // Pagination state
-  const [page, setPage] = useState<number>(1);
-  const [hasMore, setHasMore] = useState<boolean>(true);
+  const [isFetchData, setIsFetchData] = useState<boolean>(false);
+  const [hasMore, setHasMore] = useState<boolean>();
   const [allRestaurants, setAllRestaurants] = useState<Restaurant[]>([]);
   const [restaurantIds, setRestaurantIds] = useState<RestaurantId[]>();
+  const [currentCursor, setCurrentCursor] = useState<string>();
+  const [loadMore, setLoadMore] = useState<boolean>(false);
+  const [currentLimit, setCurrentLimit] = useState<string>(props?.limit || '50');
 
   // Track previous location and filters to determine if we need to refetch
   const [prevLocationFilters, setPrevLocationFilters] = useState<{
@@ -49,7 +44,6 @@ export function useRestaurants() {
   const queryKeyString = JSON.stringify({
     endpoint: '/api/restaurants',
     timestamp: timestamp,
-    page: page,
     location: location ? { lat: location.lat, lng: location.lng } : null,
     filters: filters ? {
       radius: filters.radius,
@@ -68,6 +62,9 @@ export function useRestaurants() {
   const query = useQuery({
     queryKey: [queryKeyString],
     queryFn: async () => {
+      // Set fetch data state to true at the beginning of the fetch
+      setIsFetchData(true);
+      
       // Only log in development
       if (process.env.DEV) {
         console.log("useRestaurants - queryFn called with location:", location);
@@ -85,7 +82,7 @@ export function useRestaurants() {
           console.log("useRestaurants - location?.lat:", location?.lat);
           console.log("useRestaurants - location?.lng:", location?.lng);
         }
-        return { results: [], pagination: { hasMore: false, page: 1, pageSize: 10, totalCount: 0, totalPages: 0 } };
+        return { results: [], size: 0 };
       }
       
       // Build query parameters to match what the server expects
@@ -102,8 +99,7 @@ export function useRestaurants() {
         lat: lat.toString(),
         lng: lng.toString(),
         radius: filters.radius.toString(),
-        page: page.toString(),
-        pageSize: '10' // Fixed page size
+        pageSize: currentLimit || '50'
       });
       
       // Add cuisine filters if any
@@ -129,40 +125,42 @@ export function useRestaurants() {
       if (filters.excludeChains) {
         params.append('excludeChains', filters.excludeChains.toString());
       }
-       // Add exclude cafe filter if set
-       if (filters.excludeCafe) {
+      // Add exclude cafe filter if set
+      if (filters.excludeCafe) {
         params.append('excludeCafe', filters.excludeCafe.toString());
       }
       
+      if(currentCursor){
+        console.log("currentCursor", currentCursor);
+        params.append('cursor', currentCursor)
+      }
+
       // Make the request
-      console.log(`useRestaurants - fetching page ${page} with params:`, params.toString());
+      console.log(`useRestaurants - fetching page with params:`, params.toString());
       const response = await fetch(`/api/restaurants?${params.toString()}`);
       
+    
       if (!response.ok) {
         setIsFetchData(false);
         throw new Error('Failed to fetch restaurants');
       }
       
-      const data: PaginatedResponse = await response.json();
-      console.log(`useRestaurants - received page ${page} with ${data.results.length} results, hasMore: ${data.pagination.hasMore}`);
       
-      // Update pagination state
-      setHasMore(data.pagination.hasMore);
+      const data: RestaurantsResponse = await response.json();
+      console.log(`useRestaurants - received page ${data} with ${data.results.length} results`, data);
+
+      setCurrentCursor(data.cursor);
       
-      // If it's the first page, replace all restaurants
-      // Otherwise, append to existing restaurants
-      if (page === 1) {
-        console.log(`useRestaurants - replacing all restaurants with ${data.results.length} results`);
-        setAllRestaurants(data.results);
-      } else {
-        console.log(`useRestaurants - appending ${data.results.length} results to existing ${allRestaurants.length} restaurants`);
-        setAllRestaurants(prev => [...prev, ...data.results]);
-      }
+      setHasMore(Boolean(data.cursor));
+      setAllRestaurants((prev) =>  [...prev, ...data.results]);
+      
       setIsFetchData(false);
+      setLoadMore(false);
       return data;
     },
-    enabled: isFetchData,
+    enabled: isFetchData || isFiltersUpdated || loadMore,
   });
+
   
   // Update prevLocationFilters when query is successful
   useEffect(() => {
@@ -178,16 +176,6 @@ export function useRestaurants() {
   // Use all restaurants from state instead of directly from query
   const restaurants = allRestaurants;
   
-  // Function to load more results
-  const loadMore = () => {
-    if (hasMore) {
-      console.log(`useRestaurants - loading more results, incrementing page from ${page} to ${page + 1}`);
-      setPage(prevPage => prevPage + 1);
-      setIsFetchData(true);
-    } else {
-      console.log(`useRestaurants - no more results to load`);
-    }
-  };
 
   // Filter out restaurants that have been visited recently
   const filteredRestaurants = restaurants ? restaurants.filter(restaurant => {
@@ -272,32 +260,7 @@ export function useRestaurants() {
         }
       }
      
-      
-      
-      // console.log(`Received ${allIds.length} restaurant IDs`);
-      
-      // // Filter out restaurants that have been visited recently
-      // const filteredIds = allIds.filter((item: RestaurantId) => {
-      //   if (filters.historyDays === 0) return true;
-        
-      //   // Find if restaurant was visited within the specified days
-      //   const recentVisit = visitHistory.find(visit => {
-      //     const visitDate = new Date(visit.visitDate);
-      //     const daysSinceVisit = Math.floor((Date.now() - visitDate.getTime()) / (1000 * 60 * 60 * 24));
-      //     return visit.id === item.fsq_id && daysSinceVisit < filters.historyDays;
-      //   });
-        
-      //   return !recentVisit;
-      // });
-      
-      // if (filteredIds.length === 0) {
-      //   toast({
-      //     title: "No restaurants available",
-      //     description: "Try adjusting your filters or changing your location.",
-      //     variant: "destructive"
-      //   });
-      //   return;
-      // }
+     
       console.log("restaurantIds", restaurantIds);
       if(!restaurantIds) {
         throw new Error('Failed to fetch restaurants');
@@ -359,10 +322,9 @@ export function useRestaurants() {
 
   // Force refetch when navigating to results page
   const triggerFetch = () => {
-    setIsFetchData(true);
     // Update previous location and filters when explicitly triggering a fetch
     setPrevLocationFilters({ location, filters });
-    query.refetch();
+    setIsFetchData(true);
   };
 
   return {
@@ -374,7 +336,6 @@ export function useRestaurants() {
     addToTeam: addToTeamMutation.mutate,
     highlightedRestaurant: highlightedRestaurant,
     hasMore,
-    loadMore,
-    isFetchingMore: query.isFetching && page > 1
+    loadMoreData: () => setLoadMore(true),
   };
 }

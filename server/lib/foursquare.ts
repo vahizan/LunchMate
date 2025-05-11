@@ -8,14 +8,11 @@ import {
   buildRequestParams,
   makeApiRequest,
   filterResults,
-  processPlace,
+  processPlaces,
   defaultFields,
   convertPriceLevel,
   calculateDistance
 } from './foursquare.utils';
-
-// Use any type for now to avoid TypeScript errors
-const fetchAny: any = fetch;
 
 // Get Foursquare API key from environment variables
 const apiKey = config().parsed?.FOURSQUARE_API_KEY || '';
@@ -38,7 +35,6 @@ function buildCategoriesString(filters: FilterOptions): string | undefined {
   // Add cafe category only if not excluded
   console.log("exclude cage", filters.excludeCafe);
   if (!filters.excludeCafe) {
-    console.log("filters backend", filters);
     categoryIds.push(FOOD_CATEGORY_IDS[FOOD_CATEGORIES.CAFE]);
   }
   
@@ -75,8 +71,9 @@ export async function fetchRestaurants(
   radius: number = 1000,
   filters: FilterOptions = {},
   fieldsToFetch: string | string[] = defaultFields,
-  limit?: number,
-): Promise<any[]> {
+  limit?: string,
+  cursor?: string,
+): Promise<{results: any[], cursor?: string}> {
   try {
     console.log('Foursquare API key loaded:', apiKey ? 'API key is present' : 'API key is missing');
     if (!apiKey) {
@@ -96,31 +93,45 @@ export async function fetchRestaurants(
     // Handle special case for 'fsq_id' only
     if (fieldsArray.length === 1 && fieldsArray[0] === 'fsq_id') {
       // If only fsq_id is requested, just fetch that field
-      const params = buildRequestParams(location, radius, filters, 'fsq_id', buildCategoriesString, limit);
-      console.log("params", params.toString());
+      const params = buildRequestParams(location, radius, filters, 'fsq_id', buildCategoriesString, limit, cursor);
       
-      const data = await makeApiRequest(`${baseUrl}?${params.toString()}`, apiKey, fetchAny);
-      
+      const data = await makeApiRequest(`${baseUrl}?${params.toString()}`, apiKey, fetch);
+      const awaitedResults = await data.response;
+
       // Filter and return just the IDs
-      const results = filterResults(data.results || [], filters);
-      return results.map(place => ({ place_id: place.fsq_id }));
+      const results =  filterResults(awaitedResults.results|| [], filters);
+      const ids = results?.map(place => ({ place_id: place.fsq_id }));
+      const responseParams = new URLSearchParams(data.headers.get('link') || "");
+      return {
+        results: ids,
+        cursor: responseParams.get('cursor') || undefined
+      }
     }
     
     // For normal case, map fields and build request
     const fsqFieldsString = mapToFoursquareFields(fieldsArray);
-    const params = buildRequestParams(location, radius, filters, fsqFieldsString, buildCategoriesString, limit);
+    const params = buildRequestParams(location, radius, filters, fsqFieldsString, buildCategoriesString, limit, cursor);
     
-    console.log("params", params.toString());
     
     // Make the request
-    const data = await makeApiRequest(`${baseUrl}?${params.toString()}`, apiKey, fetchAny);
-    console.log(`Foursquare returned ${data.results?.length || 0} results`);
+    const data = await makeApiRequest(`${baseUrl}?${params.toString()}`, apiKey, fetch);
+    const awaitedResults = await data.response;
+
+    console.log(`Foursquare returned ${awaitedResults.results?.length || 0} results`);
     
-    // Filter results
-    const filteredResults = filterResults(data.results || [], filters);
+    const filteredResults: Place[] = filterResults(awaitedResults.results as Place[] || [], filters);
     
     // Process each place and return
-    return filteredResults.map((place: Place) => processPlace(place, fieldsArray, location));
+    const processedPlaces =  processPlaces(filteredResults, fieldsArray, location);
+
+    const responseParams = new URLSearchParams(data.headers.get('link') || "");
+
+    console.log('responseParams',  responseParams.get('cursor'));
+    return {
+      results: processedPlaces,
+      cursor: responseParams.get('cursor') || undefined
+
+    };
     
   } catch (error) {
     console.error('Error fetching restaurants from Foursquare:', error);
@@ -140,7 +151,7 @@ export async function fetchRestaurantDetails(placeId: string): Promise<any> {
 
     const url = `https://api.foursquare.com/v3/places/${placeId}?fields=${fsqFieldsString}`;
     
-    const response = await fetchAny(url, {
+    const response = await fetch(url, {
       headers: {
         'Authorization': apiKey,
         'Accept': 'application/json'

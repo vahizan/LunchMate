@@ -57,7 +57,7 @@ export async function fetchRestaurants(
   location: Location,
   radius: number = 1000,
   filters: FilterOptions = {}
-): Promise<any[]> {
+): Promise<{results: any[], cursor?: string}> {
   try {
     // Build the URL for nearby search
     const keyword = buildKeywordString(filters);
@@ -128,7 +128,10 @@ export async function fetchRestaurants(
       };
     }));
     
-    return enhancedResults;
+    return {
+     results: enhancedResults,
+     cursor: undefined,
+    };
     
   } catch (error) {
     console.error('Error fetching restaurants:', error);

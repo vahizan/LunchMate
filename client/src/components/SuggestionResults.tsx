@@ -28,9 +28,8 @@ export default function SuggestionResults() {
     error,
     refetch,
     hasMore,
-    loadMore,
-    isFetchingMore
-  } = useRestaurants();
+    loadMoreData,
+  } = useRestaurants({limit: '50'});
   
   // Reference to the last loaded item to scroll to
   const lastItemRef = useRef<HTMLDivElement>(null);
@@ -40,12 +39,22 @@ export default function SuggestionResults() {
     console.log("SuggestionResults - restaurants data changed:", restaurants?.length);
   }, [restaurants, location, filters]);
   
-  // // Scroll to the last item when new results are loaded
-  // useEffect(() => {
-  //   if (isFetchingMore === false && lastItemRef.current) {
-  //     lastItemRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  //   }
-  // }, [isFetchingMore]);
+  // Trigger fetch when component mounts if we have a location
+  useEffect(() => {
+    if (location?.lat !== undefined && location?.lng !== undefined) {
+      console.log("SuggestionResults - triggering fetch on mount");
+      refetch();
+    }
+  }, []);
+
+
+  
+  // Scroll to the last item when new results are loaded
+  useEffect(() => {
+    if (isLoading === false && lastItemRef.current) {
+      lastItemRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [isLoading]);
 
   // Initial loading state (only shown when no results are loaded yet)
   if (isLoading && (!restaurants || restaurants.length === 0)) {
@@ -104,7 +113,7 @@ export default function SuggestionResults() {
             ))}
             
             {/* Loading more skeleton cards */}
-            {isFetchingMore && (
+            {isLoading && (
               <>
                 {[1, 2, 3].map((i) => (
                   <SkeletonCard key={`loading-more-${i}`} />
@@ -114,9 +123,9 @@ export default function SuggestionResults() {
           </div>
           
           {/* Load more button */}
-          {hasMore && !isFetchingMore && (
+          {hasMore && !isLoading && (
             <div className="mt-6 text-center">
-              <Button onClick={loadMore} variant="outline">
+              <Button onClick={loadMoreData} variant="outline">
                 Load more suggestions
               </Button>
             </div>

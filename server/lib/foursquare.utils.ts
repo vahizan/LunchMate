@@ -1,3 +1,4 @@
+import { Headers } from 'node-fetch';
 import { Location, Place, PlacePhoto, FilterOptions } from './foursquare.interfaces';
 
 // Map of our standardized field names to Foursquare API field names
@@ -63,7 +64,8 @@ export function buildRequestParams(
   filters: FilterOptions, 
   fields: string,
   buildCategoriesString: (filters: FilterOptions) => string | undefined,
-  limit?: number
+  limit?: string,
+  cursor?: string,
 ): URLSearchParams {
   const params = new URLSearchParams({
     ll: `${location.lat},${location.lng}`,
@@ -74,7 +76,11 @@ export function buildRequestParams(
   
   // Only add limit if provided
   if (limit) {
-    params.append('limit', limit.toString());
+    params.append('limit', limit);
+  }
+
+  if (cursor) {
+    params.append('cursor', cursor);
   }
   
   // Add categories if available
@@ -92,13 +98,14 @@ export function buildRequestParams(
     params.append('max_price', maxPrice.toString());
   }
   
+  console.log("PARAMS IN BUILD PARAMS", params);
   return params;
 }
 
 /**
  * Makes a request to the Foursquare API
  */
-export async function makeApiRequest(url: string, apiKey: string, fetchFn: any): Promise<any> {
+export async function makeApiRequest(url: string, apiKey: string, fetchFn: any): Promise<{response: any, headers: Headers}> {
   if (!apiKey) {
     throw new Error('Foursquare API key is missing');
   }
@@ -114,23 +121,14 @@ export async function makeApiRequest(url: string, apiKey: string, fetchFn: any):
     throw new Error(`Foursquare API error: ${response.status}`);
   }
   
-  return response.json();
+  return { response: response.json(), headers: response.headers };
 }
 
 /**
  * Filters results based on filters
  */
-export function filterResults(results: Place[], filters: FilterOptions): Place[] {
-  let filteredResults = [...results];
-  
-  // Filter out chain restaurants if requested
-  if (filters.excludeChains) {
-    console.log('Filtering out chain restaurants');
-    filteredResults = filteredResults.filter(place => !place.chains || place.chains.length === 0);
-  }
-  
-  return filteredResults;
-}
+export const filterResults = (results: Place[], filters: FilterOptions): Place[] =>  filters?.excludeChains ? results.filter(place => !place.chains || place.chains.length === 0) : results;
+
 
 /**
  * Helper function to calculate distance between two coordinates (Haversine formula)
@@ -165,6 +163,9 @@ export function convertPriceLevel(fsqPriceLevel: number): number {
   return Math.min(fsqPriceLevel, 4);
 }
 
+export const processPlaces = (places: Place[],  fieldsArray: string[], userLocation: Location) => {
+  return places.map(place => processPlace(place,fieldsArray, userLocation ))
+}
 /**
  * Processes a place object and extracts the requested fields
  */

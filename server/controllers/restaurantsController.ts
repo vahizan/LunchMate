@@ -7,24 +7,28 @@ import {
   fetchPlaceImages as fetchFoursquareImages
 } from "../lib/foursquare";
 
+
+
+const querySchema = z.object({
+  cuisines: z.array(z.string()).optional(),
+  dietary: z.array(z.string()).optional(),
+  priceLevel: z.number().optional(),
+  excludeChains: z.boolean().optional(),
+  excludeCafe: z.boolean().optional(),
+  cursor: z.string().optional(),
+});
+
+
 // Get all restaurant IDs
 export async function getRestaurantIds(req: Request, res: Response) {
+  const locationSchema = z.object({
+    lat: z.number().or(z.string().transform(s => parseFloat(s))),
+    lng: z.number().or(z.string().transform(s => parseFloat(s))),
+    radius: z.number().or(z.string().transform(s => parseFloat(s))).optional(),
+    fieldsToFetch: z.string().optional(),
+  });
+  
   try {
-    const locationSchema = z.object({
-      lat: z.number().or(z.string().transform(s => parseFloat(s))),
-      lng: z.number().or(z.string().transform(s => parseFloat(s))),
-      radius: z.number().or(z.string().transform(s => parseFloat(s))).optional(),
-      fieldsToFetch: z.string().optional()
-    });
-
-    const filtersSchema = z.object({
-      cuisines: z.array(z.string()).optional(),
-      dietary: z.array(z.string()).optional(),
-      priceLevel: z.number().optional(),
-      excludeChains: z.boolean().optional(),
-      excludeCafe: z.boolean().optional(),
-    });
-
     const queryParams = {
       lat: req.query.lat,
       lng: req.query.lng,
@@ -49,7 +53,7 @@ export async function getRestaurantIds(req: Request, res: Response) {
     };
 
     const location = locationSchema.parse(queryParams);
-    const validatedFilters = filtersSchema.parse(filters);
+    const validatedFilters = querySchema.parse(filters);
 
     // Determine which API to use based on environment variable
     // Default to Foursquare if not specified
@@ -57,6 +61,7 @@ export async function getRestaurantIds(req: Request, res: Response) {
     
     console.log(`Using ${useGoogleMaps ? 'Google Maps' : 'Foursquare'} API for restaurant ID search`);
     
+    console.log('req.query.cursor', req.query.cursor);
     // For Google Maps, we don't have a way to fetch only IDs, so we'll use the regular function
     // For Foursquare, we'll use the modified function with fieldsToFetch parameter
     const restaurants = await (useGoogleMaps
@@ -69,13 +74,14 @@ export async function getRestaurantIds(req: Request, res: Response) {
           { lat: location.lat, lng: location.lng },
           location.radius ? location.radius * 1000 : 1000, // Convert km to meters
           validatedFilters,
-          location.fieldsToFetch // Only fetch the specified fields
+          location.fieldsToFetch, // Only fetch the specified fields
+          req?.query?.cursor?.toString()
         )
     );
 
     // For Foursquare, we only need to extract the fsq_id
     // For Google Maps, we need to extract the place_id
-    const results = restaurants.map(restaurant => ({
+    const results = restaurants.results.map(restaurant => ({
       fsq_id: restaurant.place_id || restaurant.fsq_id
     }));
     
@@ -98,16 +104,6 @@ export async function getRestaurants(req: Request, res: Response) {
       radius: z.number().or(z.string().transform(s => parseFloat(s))).optional(),
     });
 
-    const filtersSchema = z.object({
-      cuisines: z.array(z.string()).optional(),
-      dietary: z.array(z.string()).optional(),
-      priceLevel: z.number().optional(),
-      excludeChains: z.boolean().optional(),
-      excludeCafe: z.boolean().optional(),
-      page: z.number().or(z.string().transform(s => parseInt(s))).optional(),
-      pageSize: z.number().or(z.string().transform(s => parseInt(s))).optional(),
-    });
-
     const queryParams = {
       lat: req.query.lat,
       lng: req.query.lng,
@@ -128,12 +124,11 @@ export async function getRestaurants(req: Request, res: Response) {
       priceLevel: req.query.priceLevel ? parseInt(req.query.priceLevel as string) : undefined,
       excludeChains: Boolean(req.query.excludeChains),
       excludeCafe: Boolean(req.query.excludeCafe),
-      page: req.query.page ? parseInt(req.query.page as string) : 1,
-      pageSize: req.query.pageSize ? parseInt(req.query.pageSize as string) : 10,
+      cursor: req.query.cursor ? req.query.cursor : undefined,
     };
 
     const location = locationSchema.parse(queryParams);
-    const validatedFilters = filtersSchema.parse(filters);
+    const validatedFilters = querySchema.parse(filters);
 
     // Determine which API to use based on environment variable
     // Default to Foursquare if not specified
@@ -150,31 +145,17 @@ export async function getRestaurants(req: Request, res: Response) {
       : fetchFoursquareRestaurants(
           { lat: location.lat, lng: location.lng },
           location.radius ? location.radius * 1000 : 1000, // Convert km to meters
-          validatedFilters
+          validatedFilters,
+          undefined,
+          req.query.pageSize?.toString(),
+          req.query.cursor?.toString()
         )
     );
-
-    // Apply pagination
-    const page = filters.page || 1;
-    const pageSize = filters.pageSize || 10;
-    const startIndex = (page - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    
-    // Get total count before pagination
-    const totalCount = restaurants.length;
-    
-    // Paginate the results
-    const paginatedRestaurants = restaurants.slice(startIndex, endIndex);
     
     res.json({
-      results: paginatedRestaurants,
-      pagination: {
-        page,
-        pageSize,
-        totalCount,
-        totalPages: Math.ceil(totalCount / pageSize),
-        hasMore: endIndex < totalCount
-      }
+      results: restaurants?.results,
+      cursor: restaurants?.cursor,
+      size: restaurants.results.length
     });
   } catch (error) {
     console.error("Error fetching restaurants:", error);
