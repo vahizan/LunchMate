@@ -169,7 +169,7 @@ export const processPlaces = (places: Place[],  fieldsArray: string[], userLocat
 /**
  * Processes a place object and extracts the requested fields
  */
-export function processPlace(place: Place, fieldsArray: string[], userLocation: Location): any {
+export function processPlace(place: Place, fieldsArray: string[], userLocation?: Location): any {
   // Create the result object with only the requested fields
   const result: any = {
     // Always include place_id as it's required for identification
@@ -269,6 +269,10 @@ export function processPlace(place: Place, fieldsArray: string[], userLocation: 
         
       case 'distance':
         // Calculate distance if not provided by Foursquare
+        if(!userLocation) {
+          result.distance = 'N/A';
+          break;
+        }
         const placeLocation = {
           lat: place.geocodes?.main?.latitude || 0,
           lng: place.geocodes?.main?.longitude || 0

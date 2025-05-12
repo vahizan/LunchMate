@@ -11,7 +11,8 @@ import {
   processPlaces,
   defaultFields,
   convertPriceLevel,
-  calculateDistance
+  calculateDistance,
+  processPlace
 } from './foursquare.utils';
 
 // Get Foursquare API key from environment variables
@@ -140,7 +141,7 @@ export async function fetchRestaurants(
 }
 
 // Fetch details for a specific restaurant
-export async function fetchRestaurantDetails(placeId: string): Promise<any> {
+export async function fetchRestaurantDetails(placeId: string, location?:Location): Promise<any> {
   try {
     if (!apiKey) {
       console.error('Foursquare API key is missing. Check your environment variables.');
@@ -162,6 +163,7 @@ export async function fetchRestaurantDetails(placeId: string): Promise<any> {
       throw new Error(`Foursquare API error: ${response.status}`);
     }
     
+    
     const place = await response.json();
     
     // Extract the photos if available
@@ -174,6 +176,17 @@ export async function fetchRestaurantDetails(placeId: string): Promise<any> {
     // Extract place types from categories
     const types = place.categories?.map((cat: any) => cat.name.toLowerCase()) || [];
     
+    // Convert to our Restaurant format
+    
+    const placeLocation = {
+      lat: place.geocodes?.main?.latitude || 0,
+      lng: place.geocodes?.main?.longitude || 0
+    };
+
+    let distance = undefined;
+    if(location){
+       distance = place.distance ? place.distance / 1000 : calculateDistance(location, placeLocation);
+    }
     // Convert to our Restaurant format
     return {
       place_id: place.fsq_id,
@@ -201,6 +214,7 @@ export async function fetchRestaurantDetails(placeId: string): Promise<any> {
           lng: place.geocodes?.main?.longitude || 0
         }
       },
+      distance,
       formatted_phone_number: place.tel,
       website: place.website,
       menu: place.menu,

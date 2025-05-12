@@ -16,6 +16,12 @@ interface RestaurantsResponse {
   cursor?: string,
 }
 
+interface RestaurantIdsResponse {
+  results: RestaurantId[],
+  size: number,
+  cursor?: string
+}
+
 export function useRestaurants(props?: {limit?: string}) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -27,8 +33,12 @@ export function useRestaurants(props?: {limit?: string}) {
   const [allRestaurants, setAllRestaurants] = useState<Restaurant[]>([]);
   const [restaurantIds, setRestaurantIds] = useState<RestaurantId[]>();
   const [currentCursor, setCurrentCursor] = useState<string>();
+  const [currentAllIdsCursor, setCurrentAllIdsCursor] = useState<string>();
   const [loadMore, setLoadMore] = useState<boolean>(false);
   const [currentLimit, setCurrentLimit] = useState<string>(props?.limit || '50');
+  const [isRandomPickLoading, setIsRandomPickLoading] = useState<boolean>(false);
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+  const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
 
   // Track previous location and filters to determine if we need to refetch
   const [prevLocationFilters, setPrevLocationFilters] = useState<{
@@ -195,6 +205,18 @@ export function useRestaurants(props?: {limit?: string}) {
   const pickRandomRestaurant = async () => {
     try {
       console.log("Fetching all restaurant IDs for random selection");
+      setIsRandomPickLoading(true);
+      
+      // If there's a previously selected restaurant, add it to skipped IDs
+      if (lastSelectedId) {
+        setSkippedIds(prev => {
+          const newSkipped = new Set(prev);
+          newSkipped.add(lastSelectedId);
+          return newSkipped;
+        });
+        // Reset last selected ID
+        setLastSelectedId(null);
+      }
       
       if (!location || location.lat === undefined || location.lng === undefined) {
         toast({
@@ -202,6 +224,7 @@ export function useRestaurants(props?: {limit?: string}) {
           description: "Please set your location first.",
           variant: "destructive"
         });
+        setIsRandomPickLoading(false);
         return;
       }
       
@@ -214,7 +237,8 @@ export function useRestaurants(props?: {limit?: string}) {
         lat: lat.toString(),
         lng: lng.toString(),
         radius: filters.radius.toString(),
-        fieldsToFetch: 'fsq_id' // Only fetch the ID field
+        fieldsToFetch: 'fsq_id', // Only fetch the ID field
+        pageSize: currentLimit || '50'
       });
       
       // Add cuisine filters if any
@@ -245,33 +269,114 @@ export function useRestaurants(props?: {limit?: string}) {
       if (filters.excludeCafe) {
         params.append('excludeCafe', filters.excludeCafe.toString());
       }
-      
-      console.log("filtersUpdated", isFiltersUpdated);
-      if(!restaurantIds || isFiltersUpdated) {
-        // Make the request to get all restaurant IDs
-        console.log("Fetching all restaurant IDs with params:", params.toString());
+
+      // Reset restaurant IDs if filters have been updated
+      if (isFiltersUpdated) {
+        setRestaurantIds([]);
+        setCurrentAllIdsCursor(undefined);
+      }
+
+      // Function to fetch restaurant IDs with pagination
+      const fetchRestaurantIds = async (cursor?: string): Promise<RestaurantId[]> => {
+        // Add cursor to params if it exists
+        if (cursor) {
+          params.set('cursor', cursor);
+        } else {
+          params.delete('cursor');
+        }
+
+        console.log("Fetching restaurant IDs with params:", params.toString());
         const response = await fetch(`/api/restaurants/ids?${params.toString()}`);
-        const data = await response.json();
-        const allIds: RestaurantId[] = data.results;
-        setRestaurantIds(allIds);
         
         if (!response.ok) {
           throw new Error('Failed to fetch restaurant IDs');
         }
+        
+        const data: RestaurantIdsResponse = await response.json();
+        
+        // Update cursor for next page
+        setCurrentAllIdsCursor(data.cursor);
+        
+        // Return the current page of results
+        return data.results;
+      };
+
+      let allIds: RestaurantId[] = [];
+      // If we don't have restaurant IDs yet or filters have been updated, fetch them
+      if (!restaurantIds || restaurantIds.length === 0 || isFiltersUpdated) {
+        let currentCursor: string | undefined = currentAllIdsCursor;
+        
+        // First fetch or reset due to filter change
+        if (!currentCursor) {
+          const initialIds = await fetchRestaurantIds();
+          allIds = [...initialIds];
+          currentCursor = currentAllIdsCursor;
+        } else {
+          // We already have some IDs, just use what we have
+          allIds = restaurantIds || [];
+        }
+        
+        // Keep fetching until cursor is null (no more pages)
+        while (currentCursor) {
+          const nextIds = await fetchRestaurantIds(currentCursor);
+          allIds = [...allIds, ...nextIds];
+          currentCursor = currentAllIdsCursor;
+        }
+        
+        // Update state with all fetched IDs
+        setRestaurantIds(allIds);
+        console.log(`Fetched a total of ${allIds.length} restaurant IDs`);
       }
-     
-     
-      console.log("restaurantIds", restaurantIds);
-      if(!restaurantIds) {
-        throw new Error('Failed to fetch restaurants');
+      
+      // Ensure we have restaurant IDs to pick from
+      if (!restaurantIds && !allIds) {
+        throw new Error('No restaurants found matching your criteria');
       }
 
-      const randomIndex = Math.floor(Math.random() * restaurantIds.length);
-      const randomId = restaurantIds[randomIndex].fsq_id;
+      // Filter out skipped IDs from the available options
+      const availableIds = (restaurantIds || allIds || []).filter(
+        id => !skippedIds.has(id.fsq_id)
+      );
+      
+      let randomId: string;
+      
+      // Check if we have any IDs left after filtering
+      if (availableIds.length === 0) {
+        // If all restaurants have been skipped, reset skipped IDs and use all available IDs
+        setSkippedIds(new Set());
+        toast({
+          title: "All options viewed",
+          description: "You've seen all available options. Starting over with all restaurants.",
+        });
+        // Use the full list again
+        const fullList = restaurantIds || allIds || [];
+        if (fullList.length === 0) {
+          throw new Error('No restaurants found matching your criteria');
+        }
+        
+        const randomIndex = Math.floor(Math.random() * fullList.length);
+        randomId = fullList[randomIndex].fsq_id;
+      } else {
+        // We have IDs that haven't been skipped yet
+        console.log(`Selecting random restaurant from ${availableIds.length} options (${skippedIds.size} skipped)`);
+        
+        const randomIndex = Math.floor(Math.random() * availableIds.length);
+        randomId = availableIds[randomIndex].fsq_id;
+      }
+      
+      // Save the selected ID so we can skip it next time
+      setLastSelectedId(randomId);
+    
+      
+      // Build query parameters to get all restaurants with only fsq_id
+      const restaurantByIdParams = new URLSearchParams({
+        lat: lat.toString(),
+        lng: lng.toString(),
+      });
       
       // Fetch full details for the selected restaurant
       console.log(`Fetching details for restaurant ID: ${randomId}`);
-      const detailsResponse = await fetch(`/api/restaurants/${randomId}`);
+      const detailsResponse = await fetch(`/api/restaurants/${randomId}?${restaurantByIdParams}`);
       
       if (!detailsResponse.ok) {
         throw new Error('Failed to fetch restaurant details');
@@ -283,6 +388,9 @@ export function useRestaurants(props?: {limit?: string}) {
       // Update previous location and filters
       setPrevLocationFilters({ location, filters });
       
+      // Log the skipped IDs for debugging
+      console.log(`Skipped IDs: ${Array.from(skippedIds).join(', ')}`);
+      
     } catch (error) {
       console.error("Error picking random restaurant:", error);
       toast({
@@ -290,6 +398,8 @@ export function useRestaurants(props?: {limit?: string}) {
         description: "Failed to pick a random restaurant. Please try again.",
         variant: "destructive"
       });
+    } finally {
+      setIsRandomPickLoading(false);
     }
   };
 
@@ -330,6 +440,7 @@ export function useRestaurants(props?: {limit?: string}) {
   return {
     data: filteredRestaurants,
     isLoading: query.isLoading || query.isFetching,
+    isRandomPickLoading,
     error: query.error,
     refetch: triggerFetch,
     pickRandomRestaurant,

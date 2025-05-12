@@ -6,6 +6,7 @@ import {
   fetchRestaurantDetails as fetchFoursquareRestaurantDetails,
   fetchPlaceImages as fetchFoursquareImages
 } from "../lib/foursquare";
+import { Location } from "@/types";
 
 
 
@@ -87,6 +88,7 @@ export async function getRestaurantIds(req: Request, res: Response) {
     
     res.json({
       results,
+      cursor: restaurants.cursor,
       count: results.length
     });
   } catch (error) {
@@ -95,15 +97,16 @@ export async function getRestaurantIds(req: Request, res: Response) {
   }
 }
 
+const locationSchema = z.object({
+  lat: z.number().or(z.string().transform(s => parseFloat(s))),
+  lng: z.number().or(z.string().transform(s => parseFloat(s))),
+  radius: z.number().or(z.string().transform(s => parseFloat(s))).optional(),
+});
+
 // Get all restaurants
 export async function getRestaurants(req: Request, res: Response) {
   try {
-    const locationSchema = z.object({
-      lat: z.number().or(z.string().transform(s => parseFloat(s))),
-      lng: z.number().or(z.string().transform(s => parseFloat(s))),
-      radius: z.number().or(z.string().transform(s => parseFloat(s))).optional(),
-    });
-
+  
     const queryParams = {
       lat: req.query.lat,
       lng: req.query.lng,
@@ -171,13 +174,18 @@ export async function getRestaurantById(req: Request, res: Response) {
     if (!id) {
       return res.status(400).json({ error: "Restaurant ID is required" });
     }
+  
+    let location: Location|undefined = undefined;
+    if(req.query?.lat && req.query?.lng){
+      location = locationSchema.parse(req.query) as Location;
+    }
 
     // Determine which API to use based on environment variable
     const useGoogleMaps = process.env.PLACES_PROVIDER === 'google';
     
     const restaurant = await (useGoogleMaps
       ? fetchGoogleRestaurantDetails(id)
-      : fetchFoursquareRestaurantDetails(id)
+      : fetchFoursquareRestaurantDetails(id, location)
     );
     
     if (!restaurant) {

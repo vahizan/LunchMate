@@ -11,7 +11,7 @@ import RestaurantCard from "@/components/RestaurantCard";
 
 export default function Home() {
   const { location } = useAppContext();
-  const { pickRandomRestaurant, highlightedRestaurant } = useRestaurants({limit: '50'});
+  const { pickRandomRestaurant, highlightedRestaurant, isRandomPickLoading } = useRestaurants({limit: '50'});
 
   useEffect(() => {
     console.log("highlighted Restaurant", highlightedRestaurant);
@@ -47,10 +47,19 @@ export default function Home() {
         <Button
           onClick={pickRandomRestaurant}
           className="bg-[#FC642D] hover:bg-[#FC642D]/90 text-white py-6 flex-1 text-lg font-medium"
-          disabled={location?.lat === undefined || location?.lng === undefined}
+          disabled={location?.lat === undefined || location?.lng === undefined || isRandomPickLoading}
         >
-          <Shuffle className="mr-2 h-5 w-5" />
-          Random Pick
+          {isRandomPickLoading ? (
+            <>
+              <div className="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+              Loading...
+            </>
+          ) : (
+            <>
+              <Shuffle className="mr-2 h-5 w-5" />
+              Random Pick
+            </>
+          )}
         </Button>
         <Button
           onClick={handleGetSuggestions}
