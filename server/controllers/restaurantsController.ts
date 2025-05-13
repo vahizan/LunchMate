@@ -9,7 +9,6 @@ import {
 import { Location } from "@/types";
 
 
-
 const querySchema = z.object({
   cuisines: z.array(z.string()).optional(),
   dietary: z.array(z.string()).optional(),
@@ -76,6 +75,7 @@ export async function getRestaurantIds(req: Request, res: Response) {
           location.radius ? location.radius * 1000 : 1000, // Convert km to meters
           validatedFilters,
           location.fieldsToFetch, // Only fetch the specified fields
+          req.query.pageSize?.toString(),
           req?.query?.cursor?.toString()
         )
     );

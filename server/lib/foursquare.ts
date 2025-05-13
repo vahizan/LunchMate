@@ -238,7 +238,7 @@ export async function fetchPlaceImages(placeId: string): Promise<any[]> {
     // First, we need to get the place details which include the photos
     const url = `https://api.foursquare.com/v3/places/${placeId}/photos`;
     
-    const response = await fetchAny(url, {
+    const response = await fetch(url, {
       headers: {
         'Authorization': apiKey,
         'Accept': 'application/json'
