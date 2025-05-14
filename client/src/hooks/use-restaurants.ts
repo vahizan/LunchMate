@@ -1,8 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { Restaurant } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import { areFiltersEqual, areLocationsEqual } from '@/lib/utils';
 
 // Define interface for restaurant ID object
 interface RestaurantId {
@@ -22,20 +23,18 @@ interface RestaurantIdsResponse {
   cursor?: string
 }
 
-export function useRestaurants(props?: {limit?: string}) {
+export function useRestaurants(props?: { limit?: string }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { location, filters, visitHistory } = useAppContext();
-  const [isFiltersUpdated, setIsFiltersUpdated] = useState<boolean>();
-  const [highlightedRestaurant, setHighlightedRestaurant] = useState<Restaurant| null>(null);
+  const [highlightedRestaurant, setHighlightedRestaurant] = useState<Restaurant | null>(null);
   const [isFetchData, setIsFetchData] = useState<boolean>(false);
-  const [hasMore, setHasMore] = useState<boolean>();
+  const [hasMore, setHasMore] = useState<boolean>(false);
   const [allRestaurants, setAllRestaurants] = useState<Restaurant[]>([]);
-  const [restaurantIds, setRestaurantIds] = useState<RestaurantId[]>();
+  const [restaurantIds, setRestaurantIds] = useState<RestaurantId[]>([]);
   const [currentCursor, setCurrentCursor] = useState<string>();
-  const [currentAllIdsCursor, setCurrentAllIdsCursor] = useState<string>();
   const [loadMore, setLoadMore] = useState<boolean>(false);
-  const [currentLimit, setCurrentLimit] = useState<string>(props?.limit || '50');
+  const [currentLimit] = useState<string>(props?.limit || '50');
   const [isRandomPickLoading, setIsRandomPickLoading] = useState<boolean>(false);
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
@@ -46,165 +45,212 @@ export function useRestaurants(props?: {limit?: string}) {
     filters: typeof filters;
   } | null>(null);
   
+  // Check if filters or location have changed
+  const hasFiltersOrLocationChanged = useMemo(() => {
+    if (!prevLocationFilters) return true;
+    
+    const locationChanged = !areLocationsEqual(location, prevLocationFilters.location);
+    const filtersChanged = !areFiltersEqual(filters, prevLocationFilters.filters);
+    
+    return locationChanged || filtersChanged;
+  }, [location, filters, prevLocationFilters]);
+
   // Create a stable query key that will change when location or filters change
-  // Add a timestamp to ensure the query key changes when filters change
-  const timestamp = Date.now();
+  const queryKey = useMemo(() => {
+    return JSON.stringify({
+      endpoint: '/api/restaurants',
+      timestamp: Date.now(), // Ensure the query key changes when filters change
+      location: location ? { lat: location.lat, lng: location.lng } : null,
+      filters: filters ? {
+        radius: filters.radius,
+        cuisines: filters.cuisines,
+        dietary: filters.dietary,
+        priceLevel: filters.priceLevel,
+        historyDays: filters.historyDays,
+        excludeChains: filters.excludeChains,
+        excludeCafe: filters.excludeCafe
+      } : null
+    });
+  }, [location, filters]);
   
-  // Create a stringified query key to ensure it changes when location or filters change
-  const queryKeyString = JSON.stringify({
-    endpoint: '/api/restaurants',
-    timestamp: timestamp,
-    location: location ? { lat: location.lat, lng: location.lng } : null,
-    filters: filters ? {
-      radius: filters.radius,
-      cuisines: filters.cuisines,
-      dietary: filters.dietary,
-      priceLevel: filters.priceLevel,
-      historyDays: filters.historyDays,
-      excludeChains: filters.excludeChains,
-      excludeCafe: filters.excludeCafe
-    } : null
-  });
+  // Reset state when location or filters change
+  useEffect(() => {
+    if (hasFiltersOrLocationChanged) {
+      setAllRestaurants([]);
+      setCurrentCursor(undefined);
+      setRestaurantIds([]);
+    }
+  }, [hasFiltersOrLocationChanged]);
   
-  console.log("useRestaurants - queryKeyString:", queryKeyString);
-  
+  // Build URL parameters based on location and filters
+  const buildUrlParams = useCallback((
+    baseLocation = location,
+    baseFilters = filters,
+    cursor?: string,
+    additionalParams: Record<string, string> = {}
+  ): URLSearchParams => {
+    if (!baseLocation || baseLocation.lat === undefined || baseLocation.lng === undefined) {
+      throw new Error('Location not set');
+    }
+    
+    // Ensure lat and lng are numbers before converting to string
+    const lat = Number(baseLocation.lat);
+    const lng = Number(baseLocation.lng);
+    
+    const params = new URLSearchParams({
+      lat: lat.toString(),
+      lng: lng.toString(),
+      radius: baseFilters.radius.toString(),
+      pageSize: currentLimit,
+      ...additionalParams
+    });
+    
+    // Add cuisine filters if any
+    if (baseFilters.cuisines.length > 0) {
+      baseFilters.cuisines.forEach(cuisine => {
+        params.append('cuisines', cuisine);
+      });
+    }
+    
+    // Add dietary filters if any
+    if (baseFilters.dietary.length > 0) {
+      baseFilters.dietary.forEach(diet => {
+        params.append('dietary', diet);
+      });
+    }
+    
+    // Add price level filter if set
+    if (baseFilters.priceLevel) {
+      params.append('priceLevel', baseFilters.priceLevel.toString());
+    }
+    
+    // Add exclude chains filter if set
+    if (baseFilters.excludeChains) {
+      params.append('excludeChains', baseFilters.excludeChains.toString());
+    }
+    
+    // Add exclude cafe filter if set
+    if (baseFilters.excludeCafe) {
+      params.append('excludeCafe', baseFilters.excludeCafe.toString());
+    }
+    
+    // Add cursor if provided
+    if (cursor) {
+      params.append('cursor', cursor);
+    }
+    
+    return params;
+  }, [location, filters, currentLimit]);
+
   // Query to get restaurants based on location and filters
   const query = useQuery({
-    queryKey: [queryKeyString],
+    queryKey: [queryKey],
     queryFn: async () => {
-      // Set fetch data state to true at the beginning of the fetch
-      setIsFetchData(true);
-      
-      // Only log in development
-      if (process.env.DEV) {
-        console.log("useRestaurants - queryFn called with location:", location);
-        console.log("useRestaurants - location lat type:", location?.lat !== undefined ? typeof location.lat : "undefined");
-        console.log("useRestaurants - location lng type:", location?.lng !== undefined ? typeof location.lng : "undefined");
-        console.log("useRestaurants - queryFn called with filters:", filters);
-      }
-      
-      // Check if location coordinates are valid (including 0 as valid)
-      // This properly handles the case where lat or lng is 0
-      if (location?.lat === undefined || location?.lng === undefined) {
-        setIsFetchData(false);
-        if (process.env.DEV) {
-          console.log("useRestaurants - invalid location, returning empty array");
-          console.log("useRestaurants - location?.lat:", location?.lat);
-          console.log("useRestaurants - location?.lng:", location?.lng);
+      try {
+        // Set fetch data state to true at the beginning of the fetch
+        setIsFetchData(true);
+        
+        // Check if location coordinates are valid (including 0 as valid)
+        if (location?.lat === undefined || location?.lng === undefined) {
+          return { results: [], size: 0 };
         }
-        return { results: [], size: 0 };
-      }
-      
-      // Build query parameters to match what the server expects
-      if (process.env.DEV) {
-        console.log("useRestaurants - building params with lat:", location.lat, "type:", typeof location.lat);
-        console.log("useRestaurants - building params with lng:", location.lng, "type:", typeof location.lng);
-      }
-      
-      // Ensure lat and lng are numbers before converting to string
-      const lat = Number(location.lat);
-      const lng = Number(location.lng);
-      
-      const params = new URLSearchParams({
-        lat: lat.toString(),
-        lng: lng.toString(),
-        radius: filters.radius.toString(),
-        pageSize: currentLimit || '50'
-      });
-      
-      // Add cuisine filters if any
-      if (filters.cuisines.length > 0) {
-        filters.cuisines.forEach(cuisine => {
-          params.append('cuisines', cuisine);
-        });
-      }
-      
-      // Add dietary filters if any
-      if (filters.dietary.length > 0) {
-        filters.dietary.forEach(diet => {
-          params.append('dietary', diet);
-        });
-      }
-      
-      // Add price level filter if set
-      if (filters.priceLevel) {
-        params.append('priceLevel', filters.priceLevel.toString());
-      }
-      
-      // Add exclude chains filter if set
-      if (filters.excludeChains) {
-        params.append('excludeChains', filters.excludeChains.toString());
-      }
-      // Add exclude cafe filter if set
-      if (filters.excludeCafe) {
-        params.append('excludeCafe', filters.excludeCafe.toString());
-      }
-      
-      if(currentCursor){
-        console.log("currentCursor", currentCursor);
-        params.append('cursor', currentCursor)
-      }
-
-      // Make the request
-      console.log(`useRestaurants - fetching page with params:`, params.toString());
-      const response = await fetch(`/api/restaurants?${params.toString()}`);
-      
-    
-      if (!response.ok) {
+        
+        const params = buildUrlParams(location, filters, currentCursor);
+        
+        // Make the request
+        console.log(`useRestaurants - fetching page with params:`, params.toString());
+        const response = await fetch(`/api/restaurants?${params.toString()}`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch restaurants');
+        }
+        
+        const data: RestaurantsResponse = await response.json();
+        console.log(`useRestaurants - received page with ${data.results.length} results`, data);
+        
+        setCurrentCursor(data.cursor);
+        setHasMore(Boolean(data.cursor));
+        setAllRestaurants(prev => [...prev, ...data.results]);
+        
+        return data;
+      } catch (error) {
+        console.error("Error fetching restaurants:", error);
+        throw error;
+      } finally {
         setIsFetchData(false);
-        throw new Error('Failed to fetch restaurants');
+        setLoadMore(false);
       }
-      
-      
-      const data: RestaurantsResponse = await response.json();
-      console.log(`useRestaurants - received page ${data} with ${data.results.length} results`, data);
-
-      setCurrentCursor(data.cursor);
-      
-      setHasMore(Boolean(data.cursor));
-      setAllRestaurants((prev) =>  [...prev, ...data.results]);
-      
-      setIsFetchData(false);
-      setLoadMore(false);
-      return data;
     },
-    enabled: isFetchData || isFiltersUpdated || loadMore,
+    enabled: isFetchData || hasFiltersOrLocationChanged || loadMore,
   });
 
   
   // Update prevLocationFilters when query is successful
   useEffect(() => {
-    if (query.isSuccess && !query.isFetching && allRestaurants.length > 0) {
-      console.log("Query successful, updating prevLocationFilters");
+    if (query.isSuccess && !query.isFetching) {
       setPrevLocationFilters({ location, filters });
-      setIsFiltersUpdated(true);
-    } else {
-      setIsFiltersUpdated(false);
     }
-  }, [query.isSuccess, query.isFetching, allRestaurants.length, location, filters]);
+  }, [query.isSuccess, query.isFetching, location, filters]);
   
-  // Use all restaurants from state instead of directly from query
-  const restaurants = allRestaurants;
-  
-
   // Filter out restaurants that have been visited recently
-  const filteredRestaurants = restaurants ? restaurants.filter(restaurant => {
-    if (filters.historyDays === 0) return true;
+  const filteredRestaurants = useMemo(() => {
+    if (!allRestaurants.length) return [];
     
-    // Find if restaurant was visited within the specified days
-    const recentVisit = visitHistory.find(visit => {
-      const visitDate = new Date(visit.visitDate);
-      const daysSinceVisit = Math.floor((Date.now() - visitDate.getTime()) / (1000 * 60 * 60 * 24));
-      return visit.id === restaurant.place_id && daysSinceVisit < filters.historyDays;
+    return allRestaurants.filter(restaurant => {
+      if (filters.historyDays === 0) return true;
+      
+      // Find if restaurant was visited within the specified days
+      const recentVisit = visitHistory.find(visit => {
+        const visitDate = new Date(visit.visitDate);
+        const daysSinceVisit = Math.floor((Date.now() - visitDate.getTime()) / (1000 * 60 * 60 * 24));
+        return visit.id === restaurant.place_id && daysSinceVisit < filters.historyDays;
+      });
+      
+      return !recentVisit;
     });
-    
-    return !recentVisit;
-  }) : [];
+  }, [allRestaurants, filters.historyDays, visitHistory]);
+
+  // Function to fetch restaurant IDs with pagination
+  const fetchRestaurantIds = useCallback(async (): Promise<RestaurantId[]> => {
+    try {
+      const params = buildUrlParams(location, filters, undefined, { fieldsToFetch: 'fsq_id' });
+      console.log("Fetching restaurant IDs with params:", params.toString());
+      
+      let allIds: RestaurantId[] = [];
+      let count = 0;
+      let cursor: string | undefined;
+      
+      // Fetch all pages of restaurant IDs
+      while (cursor !== null || count === 0) {
+        if (cursor) {
+          params.set('cursor', cursor);
+        }
+        
+        const response = await fetch(`/api/restaurants/ids?${params.toString()}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch restaurant IDs');
+        }
+        
+        const data: RestaurantIdsResponse = await response.json();
+        allIds = allIds.concat(data.results);
+        cursor = data.cursor;
+        count++;
+        
+        if (!cursor) break;
+      }
+      
+      console.log(`Fetched a total of ${allIds.length} restaurant IDs`);
+      return allIds;
+    } catch (error) {
+      console.error("Error fetching restaurant IDs:", error);
+      throw error;
+    }
+  }, [location, filters, buildUrlParams]);
 
   // Pick random restaurant
-  const pickRandomRestaurant = async () => {
+  const pickRandomRestaurant = useCallback(async () => {
     try {
-      console.log("Fetching all restaurant IDs for random selection");
+      console.log("Picking random restaurant");
       setIsRandomPickLoading(true);
       
       // If there's a previously selected restaurant, add it to skipped IDs
@@ -224,119 +270,23 @@ export function useRestaurants(props?: {limit?: string}) {
           description: "Please set your location first.",
           variant: "destructive"
         });
-        setIsRandomPickLoading(false);
         return;
       }
       
-      // Ensure lat and lng are numbers before converting to string
-      const lat = Number(location.lat);
-      const lng = Number(location.lng);
-      
-      // Build query parameters to get all restaurants with only fsq_id
-      const params = new URLSearchParams({
-        lat: lat.toString(),
-        lng: lng.toString(),
-        radius: filters.radius.toString(),
-        fieldsToFetch: 'fsq_id', // Only fetch the ID field
-        pageSize: currentLimit || '50'
-      });
-      
-      // Add cuisine filters if any
-      if (filters.cuisines.length > 0) {
-        filters.cuisines.forEach(cuisine => {
-          params.append('cuisines', cuisine);
-        });
+      // Check if we need to fetch new restaurant IDs due to location or filter changes
+      let currentIds = restaurantIds;
+      if (hasFiltersOrLocationChanged || currentIds.length === 0) {
+        console.log("Filters or location changed, fetching new restaurant IDs");
+        currentIds = await fetchRestaurantIds();
+        setRestaurantIds(currentIds);
       }
       
-      // Add dietary filters if any
-      if (filters.dietary.length > 0) {
-        filters.dietary.forEach(diet => {
-          params.append('dietary', diet);
-        });
-      }
-      
-      // Add price level filter if set
-      if (filters.priceLevel) {
-        params.append('priceLevel', filters.priceLevel.toString());
-      }
-      
-      // Add exclude chains filter if set
-      if (filters.excludeChains) {
-        params.append('excludeChains', filters.excludeChains.toString());
-      }
-      
-      // Add exclude cafe filter if set
-      if (filters.excludeCafe) {
-        params.append('excludeCafe', filters.excludeCafe.toString());
-      }
-
-      // Reset restaurant IDs if filters have been updated
-      if (isFiltersUpdated) {
-        setRestaurantIds([]);
-        setCurrentAllIdsCursor(undefined);
-      }
-
-      // Function to fetch restaurant IDs with pagination
-      const fetchRestaurantIds = async (cursor?: string): Promise<RestaurantId[]> => {
-        // Add cursor to params if it exists
-        if (cursor) {
-          params.set('cursor', cursor);
-        } else {
-          params.delete('cursor');
-        }
-
-        console.log("Fetching restaurant IDs with params:", params.toString());
-        const response = await fetch(`/api/restaurants/ids?${params.toString()}`);
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch restaurant IDs');
-        }
-        
-        const data: RestaurantIdsResponse = await response.json();
-        
-        // Update cursor for next page
-        setCurrentAllIdsCursor(data.cursor);
-        
-        // Return the current page of results
-        return data.results;
-      };
-
-      let allIds: RestaurantId[] = [];
-      // If we don't have restaurant IDs yet or filters have been updated, fetch them
-      if (!restaurantIds || restaurantIds.length === 0 || isFiltersUpdated) {
-        let currentCursor: string | undefined = currentAllIdsCursor;
-        
-        // First fetch or reset due to filter change
-        if (!currentCursor) {
-          const initialIds = await fetchRestaurantIds();
-          allIds = [...initialIds];
-          currentCursor = currentAllIdsCursor;
-        } else {
-          // We already have some IDs, just use what we have
-          allIds = restaurantIds || [];
-        }
-        
-        // Keep fetching until cursor is null (no more pages)
-        while (currentCursor) {
-          const nextIds = await fetchRestaurantIds(currentCursor);
-          allIds = [...allIds, ...nextIds];
-          currentCursor = currentAllIdsCursor;
-        }
-        
-        // Update state with all fetched IDs
-        setRestaurantIds(allIds);
-        console.log(`Fetched a total of ${allIds.length} restaurant IDs`);
-      }
-      
-      // Ensure we have restaurant IDs to pick from
-      if (!restaurantIds && !allIds) {
+      if (currentIds.length === 0) {
         throw new Error('No restaurants found matching your criteria');
       }
-
+      
       // Filter out skipped IDs from the available options
-      const availableIds = (restaurantIds || allIds || []).filter(
-        id => !skippedIds.has(id.fsq_id)
-      );
+      const availableIds = currentIds.filter(id => !skippedIds.has(id.fsq_id));
       
       let randomId: string;
       
@@ -348,14 +298,13 @@ export function useRestaurants(props?: {limit?: string}) {
           title: "All options viewed",
           description: "You've seen all available options. Starting over with all restaurants.",
         });
-        // Use the full list again
-        const fullList = restaurantIds || allIds || [];
-        if (fullList.length === 0) {
+        
+        if (currentIds.length === 0) {
           throw new Error('No restaurants found matching your criteria');
         }
         
-        const randomIndex = Math.floor(Math.random() * fullList.length);
-        randomId = fullList[randomIndex].fsq_id;
+        const randomIndex = Math.floor(Math.random() * currentIds.length);
+        randomId = currentIds[randomIndex].fsq_id;
       } else {
         // We have IDs that haven't been skipped yet
         console.log(`Selecting random restaurant from ${availableIds.length} options (${skippedIds.size} skipped)`);
@@ -366,13 +315,14 @@ export function useRestaurants(props?: {limit?: string}) {
       
       // Save the selected ID so we can skip it next time
       setLastSelectedId(randomId);
-    
       
-      // Build query parameters to get all restaurants with only fsq_id
-      const restaurantByIdParams = new URLSearchParams({
-        lat: lat.toString(),
-        lng: lng.toString(),
-      });
+      // Build query parameters for restaurant details
+      const restaurantByIdParams = buildUrlParams(
+        location,
+        filters,
+        undefined,
+        {}
+      );
       
       // Fetch full details for the selected restaurant
       console.log(`Fetching details for restaurant ID: ${randomId}`);
@@ -395,13 +345,23 @@ export function useRestaurants(props?: {limit?: string}) {
       console.error("Error picking random restaurant:", error);
       toast({
         title: "Error",
-        description: "Failed to pick a random restaurant. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to pick a random restaurant. Please try again.",
         variant: "destructive"
       });
     } finally {
       setIsRandomPickLoading(false);
     }
-  };
+  }, [
+    location,
+    filters,
+    lastSelectedId,
+    restaurantIds,
+    skippedIds,
+    hasFiltersOrLocationChanged,
+    fetchRestaurantIds,
+    buildUrlParams,
+    toast
+  ]);
 
   // Add restaurant to team suggestion
   const addToTeamMutation = useMutation({
@@ -431,11 +391,15 @@ export function useRestaurants(props?: {limit?: string}) {
   });
 
   // Force refetch when navigating to results page
-  const triggerFetch = () => {
-    // Update previous location and filters when explicitly triggering a fetch
+  const triggerFetch = useCallback(() => {
     setPrevLocationFilters({ location, filters });
     setIsFetchData(true);
-  };
+  }, [location, filters]);
+
+  // Load more data handler
+  const loadMoreData = useCallback(() => {
+    setLoadMore(true);
+  }, []);
 
   return {
     data: filteredRestaurants,
@@ -445,8 +409,8 @@ export function useRestaurants(props?: {limit?: string}) {
     refetch: triggerFetch,
     pickRandomRestaurant,
     addToTeam: addToTeamMutation.mutate,
-    highlightedRestaurant: highlightedRestaurant,
+    highlightedRestaurant,
     hasMore,
-    loadMoreData: () => setLoadMore(true),
+    loadMoreData,
   };
 }

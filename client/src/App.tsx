@@ -21,9 +21,8 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen flex flex-col">
         {/* Environment Variables Debugger */}
-        <EnvDebugger />
-        
-        {/* Header */}
+        {/* <EnvDebugger /> */}
+      
         <header className="bg-white shadow-md sticky top-0 z-10">
           <div className="container mx-auto px-4 py-4 flex justify-between items-center">
             <div className="flex items-center">

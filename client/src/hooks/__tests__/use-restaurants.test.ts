@@ -438,6 +438,159 @@ describe('useRestaurants', () => {
     Math.random = originalRandom;
   });
   
+  test('should refetch restaurant IDs when filters or location change', async () => {
+    // Mock Math.random to always return 0 (first item in array)
+    const originalRandom = Math.random;
+    Math.random = jest.fn().mockReturnValue(0);
+    
+    // Setup initial restaurant IDs
+    const initialIds = [
+      { fsq_id: 'test-1' },
+      { fsq_id: 'test-2' }
+    ];
+    
+    // Setup new restaurant IDs after filter change
+    const newIds = [
+      { fsq_id: 'test-3' },
+      { fsq_id: 'test-4' }
+    ];
+    
+    // Mock fetch to return different responses based on parameters
+    const fetchMock = jest.fn().mockImplementation((url) => {
+      if (url.includes('/api/restaurants/ids')) {
+        // Check if this is the second call with updated filters
+        if (url.includes('cuisines=chinese')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({
+              results: newIds,
+              cursor: null,
+              size: newIds.length
+            })
+          });
+        } else {
+          // First call with initial filters
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({
+              results: initialIds,
+              cursor: null,
+              size: initialIds.length
+            })
+          });
+        }
+      } else if (url.includes('/api/restaurants/test-1')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockRestaurants[0])
+        });
+      } else if (url.includes('/api/restaurants/test-3')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            place_id: 'test-3',
+            name: 'New Restaurant After Filter Change'
+          })
+        });
+      }
+      
+      return Promise.reject(new Error('Not found'));
+    });
+    
+    // Replace the global fetch with our mock
+    (global.fetch as unknown as jest.Mock) = fetchMock;
+    
+    // Setup mock context with initial filters
+    const initialFilters = { ...mockFilters, cuisines: ['italian'] };
+    (useAppContext as unknown as jest.Mock).mockReturnValue({
+      location: mockLocation,
+      filters: initialFilters,
+      visitHistory: mockVisitHistory,
+      userPreferences: null,
+      setUserPreferences: jest.fn(),
+      favorites: [],
+      toggleFavorite: jest.fn(),
+      isFavorite: jest.fn(),
+      addToHistory: jest.fn(),
+      removeFromHistory: jest.fn(),
+      clearVisitHistory: jest.fn(),
+      setLocation: jest.fn(),
+      setFilters: jest.fn(),
+      resetFilters: jest.fn(),
+      restaurants: [],
+      setRestaurants: jest.fn(),
+      isLoading: false,
+      setIsLoading: jest.fn(),
+      teamModalOpen: false,
+      setTeamModalOpen: jest.fn()
+    });
+    
+    const wrapper = createWrapper();
+    const { result, rerender } = renderHook(() => useRestaurants(), { wrapper });
+    
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    
+    // First random pick with initial filters
+    await act(async () => {
+      await result.current.pickRandomRestaurant();
+    });
+    
+    // Should have selected the first restaurant
+    expect(result.current.highlightedRestaurant).toEqual(mockRestaurants[0]);
+    
+    // Now update the filters
+    const updatedFilters = { ...mockFilters, cuisines: ['chinese'] };
+    (useAppContext as unknown as jest.Mock).mockReturnValue({
+      location: mockLocation,
+      filters: updatedFilters,
+      visitHistory: mockVisitHistory,
+      userPreferences: null,
+      setUserPreferences: jest.fn(),
+      favorites: [],
+      toggleFavorite: jest.fn(),
+      isFavorite: jest.fn(),
+      addToHistory: jest.fn(),
+      removeFromHistory: jest.fn(),
+      clearVisitHistory: jest.fn(),
+      setLocation: jest.fn(),
+      setFilters: jest.fn(),
+      resetFilters: jest.fn(),
+      restaurants: [],
+      setRestaurants: jest.fn(),
+      isLoading: false,
+      setIsLoading: jest.fn(),
+      teamModalOpen: false,
+      setTeamModalOpen: jest.fn()
+    });
+    
+    // Rerender with updated context
+    rerender();
+    
+    // Second random pick with updated filters
+    await act(async () => {
+      await result.current.pickRandomRestaurant();
+    });
+    
+    // Should have fetched new restaurant IDs and selected from the new list
+    const fetchCalls = fetchMock.mock.calls;
+    const idsCalls = fetchCalls.filter(call => call[0].includes('/api/restaurants/ids'));
+    
+    // Should have made at least 2 calls to fetch restaurant IDs
+    expect(idsCalls.length).toBeGreaterThanOrEqual(2);
+    
+    // Verify that the second call included the updated cuisine filter
+    expect(idsCalls[idsCalls.length - 1][0]).toContain('cuisines=chinese');
+    
+    // Should have updated the highlighted restaurant
+    expect(result.current.highlightedRestaurant).toEqual({
+      place_id: 'test-3',
+      name: 'New Restaurant After Filter Change'
+    });
+    
+    // Restore original Math.random
+    Math.random = originalRandom;
+  });
+  
   test('should skip previously selected restaurants when picking random restaurants', async () => {
     // Setup mock data
     const restaurantIds = [
