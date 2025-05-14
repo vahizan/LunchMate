@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef } from "react";
-import { AppContext } from "@/context/AppContext";
+import { AppContext, useAppContext } from "@/context/AppContext";
 import { Button } from "@/components/ui/button";
 import { MapPin } from "lucide-react";
 import { usePlaces } from "@/hooks/use-places";
@@ -35,10 +35,8 @@ export const LocationMap = ({ location, onMapClick }: LocationMapProps) => {
   }, [mapLocation, showMap, providerType]);
 
   // Get API key for static map fallback
-  const apiKey = providerType === 'google'
-    ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY
-    : import.meta.env.VITE_FOURSQUARE_PLACES_API_KEY;
-  
+  const googleApiKey = process.env.VITE_GOOGLE_MAPS_API_KEY;
+  const foursquareApiKey = process.env.VITE_FOURSQUARE_PLACES_API_KEY;
   // Determine coordinates for static map fallback
   const lat = mapLocation?.lat || 0;
   const lng = mapLocation?.lng || 0;
@@ -47,9 +45,10 @@ export const LocationMap = ({ location, onMapClick }: LocationMapProps) => {
   const getStaticMapUrl = () => {
     if (!mapLocation?.lat || !mapLocation?.lng) return undefined;
     
-    if (providerType === 'google' && apiKey) {
+    // For hybrid provider or google provider, use Google Maps
+    if ((providerType === 'hybrid' || providerType === 'google') && googleApiKey) {
       // Google Maps static API
-      return `url("https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=13&size=600x200&key=${apiKey}")`;
+      return `url("https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=13&size=600x200&key=${googleApiKey}")`;
     } else {
       // OpenStreetMap for Foursquare (doesn't require API key)
       return `url("https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=14&size=600x200&markers=${lat},${lng},red")`;
@@ -61,11 +60,6 @@ export const LocationMap = ({ location, onMapClick }: LocationMapProps) => {
       id="map"
       ref={mapContainerRef}
       className="h-48 bg-gray-100 relative"
-      style={{
-        backgroundImage: getStaticMapUrl(),
-        backgroundSize: 'cover',
-        backgroundPosition: 'center'
-      }}
     >
       <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
         <Button 

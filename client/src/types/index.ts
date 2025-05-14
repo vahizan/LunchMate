@@ -12,6 +12,8 @@ export interface Filters {
   dietary: string[];
   priceLevel: number;
   historyDays: number;
+  excludeChains: boolean;
+  excludeCafe: boolean;
 }
 
 // Restaurant type - based on Google Places API with some additions
@@ -25,9 +27,11 @@ export interface Restaurant {
   price_level?: number;
   types?: string[];
   photos?: Array<{
-    photo_reference: string;
-    height: number;
-    width: number;
+    id: string;
+    created_at: string;
+    small: string;
+    large: string;
+    xlarge: string;
   }>;
   opening_hours?: {
     open_now: boolean;
@@ -43,6 +47,26 @@ export interface Restaurant {
   formatted_phone_number?: string;
   website?: string;
   open_now?: boolean;
+  
+  // Additional Foursquare fields
+  description?: string;
+  menu?: string;
+  popularity?: number;
+  features?: {
+    payment?: {
+      credit_cards?: boolean;
+      digital_wallet?: boolean;
+    };
+    food_and_drink?: {
+      alcohol?: boolean;
+      breakfast?: boolean;
+      dinner?: boolean;
+      lunch?: boolean;
+      takeout?: boolean;
+      delivery?: boolean;
+      reservations?: boolean;
+    };
+  };
   
   // Custom additions
   votes?: number;

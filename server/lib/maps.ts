@@ -57,7 +57,7 @@ export async function fetchRestaurants(
   location: Location,
   radius: number = 1000,
   filters: FilterOptions = {}
-): Promise<any[]> {
+): Promise<{results: any[], cursor?: string}> {
   try {
     // Build the URL for nearby search
     const keyword = buildKeywordString(filters);
@@ -77,6 +77,7 @@ export async function fetchRestaurants(
     }
     
     // Make the request
+    console.log('Fetching restaurants from Google Places API:', url);
     const response = await fetch(url);
     const data = await response.json();
     
@@ -87,7 +88,11 @@ export async function fetchRestaurants(
     
     // Process results and add distance
     const results = data.results || [];
-    return results.map((place: any) => {
+    console.log(`Google Places API returned ${results.length} restaurants`);
+    
+    // For each place in the results, if it has a place_id but no photos,
+    // fetch the details to get the photos
+    const enhancedResults = await Promise.all(results.map(async (place: any) => {
       // Calculate distance
       const placeLocation = {
         lat: place.geometry.location.lat,
@@ -95,11 +100,38 @@ export async function fetchRestaurants(
       };
       const distance = calculateDistance(location, placeLocation);
       
+      // If the place doesn't have photos, fetch details to get photos
+      if (!place.photos || place.photos.length === 0) {
+        try {
+          console.log(`Fetching photos for restaurant: ${place.name} (${place.place_id})`);
+          const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=photos&key=${apiKey}`;
+          const detailsResponse = await fetch(detailsUrl);
+          const detailsData = await detailsResponse.json();
+          
+          if (detailsData.status === 'OK' && detailsData.result && detailsData.result.photos) {
+            place.photos = detailsData.result.photos;
+            console.log(`Successfully fetched ${detailsData.result.photos.length} photos for ${place.name}`);
+          } else {
+            console.log(`No photos found for ${place.name} in details response`);
+          }
+        } catch (error) {
+          console.error(`Error fetching photos for place ${place.place_id}:`, error);
+          // Continue without photos if there's an error
+        }
+      } else {
+        console.log(`Restaurant ${place.name} already has ${place.photos.length} photos from nearby search`);
+      }
+      
       return {
         ...place,
         distance
       };
-    });
+    }));
+    
+    return {
+     results: enhancedResults,
+     cursor: undefined,
+    };
     
   } catch (error) {
     console.error('Error fetching restaurants:', error);
