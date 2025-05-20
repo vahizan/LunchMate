@@ -68,7 +68,8 @@ export function useRestaurants(props?: { limit?: string }) {
         priceLevel: filters.priceLevel,
         historyDays: filters.historyDays,
         excludeChains: filters.excludeChains,
-        excludeCafe: filters.excludeCafe
+        excludeCafe: filters.excludeCafe,
+        departureTime: filters.departureTime
       } : null
     });
   }, [location, filters]);
@@ -132,6 +133,11 @@ export function useRestaurants(props?: { limit?: string }) {
     // Add exclude cafe filter if set
     if (baseFilters.excludeCafe) {
       params.append('excludeCafe', baseFilters.excludeCafe.toString());
+    }
+    
+    // Add departure time if set
+    if (baseFilters.departureTime) {
+      params.append('departureTime', baseFilters.departureTime);
     }
     
     // Add cursor if provided

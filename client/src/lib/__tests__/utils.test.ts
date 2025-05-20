@@ -14,7 +14,8 @@ describe('areFiltersEqual', () => {
       priceLevel: 2,
       historyDays: 14,
       excludeChains: false,
-      excludeCafe: false
+      excludeCafe: false,
+      departureTime: "12:00"
     };
     expect(areFiltersEqual(filters, undefined)).toBe(false);
     expect(areFiltersEqual(undefined, filters)).toBe(false);
@@ -28,7 +29,8 @@ describe('areFiltersEqual', () => {
       priceLevel: 2,
       historyDays: 14,
       excludeChains: false,
-      excludeCafe: false
+      excludeCafe: false,
+      departureTime: "12:00"
     };
     
     // Different priceLevel
@@ -68,7 +70,8 @@ describe('areFiltersEqual', () => {
       priceLevel: 2,
       historyDays: 14,
       excludeChains: false,
-      excludeCafe: false
+      excludeCafe: false,
+      departureTime: "12:00"
     };
     
     // Different radius array length
@@ -101,7 +104,8 @@ describe('areFiltersEqual', () => {
       priceLevel: 2,
       historyDays: 14,
       excludeChains: false,
-      excludeCafe: false
+      excludeCafe: false,
+      departureTime: "12:00"
     };
     
     // Different radius value
@@ -134,7 +138,8 @@ describe('areFiltersEqual', () => {
       priceLevel: 2,
       historyDays: 14,
       excludeChains: true,
-      excludeCafe: false
+      excludeCafe: false,
+      departureTime: "12:00"
     };
     
     const filters2: Filters = {
@@ -144,7 +149,8 @@ describe('areFiltersEqual', () => {
       priceLevel: 2,
       historyDays: 14,
       excludeChains: true,
-      excludeCafe: false
+      excludeCafe: false,
+      departureTime: "12:00"
     };
     
     expect(areFiltersEqual(filters1, filters2)).toBe(true);

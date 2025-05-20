@@ -28,7 +28,8 @@ describe('useRestaurants', () => {
     priceLevel: 2,
     historyDays: 14,
     excludeChains: true,
-    excludeCafe: false
+    excludeCafe: false,
+    departureTime: '2025-05-16T10:30:00.000Z'
   };
 
   const mockVisitHistory = [
@@ -47,7 +48,14 @@ describe('useRestaurants', () => {
         }
       },
       rating: 4.5,
-      price_level: 2
+      price_level: 2,
+      crowd_level: 'moderate',
+      peak_hours: [
+        { day: 'Monday', hour: 12, level: 'busy' },
+        { day: 'Monday', hour: 13, level: 'busy' },
+        { day: 'Friday', hour: 19, level: 'busy' },
+        { day: 'Saturday', hour: 20, level: 'busy' }
+      ]
     },
     {
       place_id: 'test-2',
@@ -59,7 +67,8 @@ describe('useRestaurants', () => {
         }
       },
       rating: 4.2,
-      price_level: 3
+      price_level: 3,
+      crowd_level: 'busy'
     },
     {
       place_id: 'visited-1',
@@ -71,7 +80,8 @@ describe('useRestaurants', () => {
         }
       },
       rating: 4.0,
-      price_level: 2
+      price_level: 2,
+      crowd_level: 'not_busy'
     }
   ];
 
@@ -245,7 +255,12 @@ describe('useRestaurants', () => {
           }
         },
         rating: 4.7,
-        price_level: 1
+        price_level: 1,
+        crowd_level: 'moderate',
+        peak_hours: [
+          { day: 'Sunday', hour: 12, level: 'busy' },
+          { day: 'Sunday', hour: 13, level: 'busy' }
+        ]
       }
     ];
     
@@ -960,7 +975,8 @@ describe('useRestaurants', () => {
     const updatedFilters = {
       ...mockFilters,
       cuisines: ['thai', 'japanese'],
-      radius: [2]
+      radius: [2],
+      departureTime: '2025-05-16T11:00:00.000Z'
     };
     
     // Mock AppContext with updated filters

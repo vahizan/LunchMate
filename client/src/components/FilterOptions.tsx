@@ -13,6 +13,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { PlusCircle } from "lucide-react";
 import { FOOD_CATEGORIES } from "@/../../shared/types";
 
+// Helper function to get current time in HH:MM format
+const getCurrentTimeString = (): string => {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+};
+
 // Define cuisine types and dietary restrictions
 const CUISINE_TYPES = [
   FOOD_CATEGORIES.ITALIAN, FOOD_CATEGORIES.JAPANESE, FOOD_CATEGORIES.INDIAN, FOOD_CATEGORIES.CHINESE,
@@ -48,6 +54,7 @@ export const FilterOptions = () => {
   const [currentHistoryDays, setCurrentHistoryDays] = useState<number>();
   const [currentExcludeChains, setCurrentExcludeChains] = useState<boolean>();
   const [currentExcludeCafe, setCurrentExcludeCafe] = useState<boolean>();
+  const [currentDepartureTime, setCurrentDepartureTime] = useState<string>();
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [dialogOpen, setDialogOpen] = useState<boolean>(false);
   const [customCuisine, setCustomCuisine] = useState<string>("");
@@ -61,6 +68,7 @@ export const FilterOptions = () => {
     setCurrentHistoryDays(filters.historyDays);
     setCurrentExcludeChains(filters.excludeChains);
     setCurrentExcludeCafe(filters.excludeCafe);
+    setCurrentDepartureTime(filters.departureTime);
   }, [filters]);
 
   // Generic function to toggle array items (for cuisines and dietary restrictions)
@@ -176,6 +184,19 @@ export const FilterOptions = () => {
     setCurrentExcludeCafe(checked);
   };
 
+  const handleDepartureTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = e.target.value;
+    setCurrentDepartureTime(time);
+    
+    // Create a completely new object to ensure reference changes
+    const newFilters = {
+      ...filters,
+      departureTime: time
+    };
+    console.log("FilterOptions - handleDepartureTimeChange - updating filters:", newFilters);
+    setFilters(newFilters);
+  };
+
   return (
     <div className="mb-6">
       <Card>
@@ -190,6 +211,7 @@ export const FilterOptions = () => {
               setCurrentHistoryDays(14);
               setCurrentExcludeChains(false);
               setCurrentExcludeCafe(false);
+              setCurrentDepartureTime(getCurrentTimeString());
               console.log("FilterOptions - reset button clicked");
               resetFilters();
             }}>
@@ -215,6 +237,23 @@ export const FilterOptions = () => {
             <div className="flex justify-between text-xs text-gray-500 mt-1">
               <span>0.2 km (Min)</span>
               <span>5 km (Max)</span>
+            </div>
+          </div>
+
+          {/* Departure Time */}
+          <div className="mb-6">
+            <Label htmlFor="departure-time" className="block text-sm font-medium text-gray-500 mb-2">
+              Departure time
+            </Label>
+            <Input
+              id="departure-time"
+              type="time"
+              value={currentDepartureTime}
+              onChange={handleDepartureTimeChange}
+              className="w-full"
+            />
+            <div className="text-xs text-gray-500 mt-1">
+              When you plan to leave for lunch
             </div>
           </div>
 

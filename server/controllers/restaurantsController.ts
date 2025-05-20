@@ -1,6 +1,11 @@
 import { Request, Response } from "express";
 import { z } from "zod";
-import { fetchRestaurants as fetchGoogleRestaurants, fetchRestaurantDetails as fetchGoogleRestaurantDetails } from "../lib/maps";
+import {
+  fetchRestaurants as fetchGoogleRestaurants,
+  fetchRestaurantDetails as fetchGoogleRestaurantDetails,
+  calculateTravelInfo,
+  fetchCrowdInformation
+} from "../lib/maps";
 import {
   fetchRestaurants as fetchFoursquareRestaurants,
   fetchRestaurantDetails as fetchFoursquareRestaurantDetails,
@@ -16,6 +21,7 @@ const querySchema = z.object({
   excludeChains: z.boolean().optional(),
   excludeCafe: z.boolean().optional(),
   cursor: z.string().optional(),
+  departureTime: z.string().optional(),
 });
 
 
@@ -128,6 +134,7 @@ export async function getRestaurants(req: Request, res: Response) {
       excludeChains: Boolean(req.query.excludeChains),
       excludeCafe: Boolean(req.query.excludeCafe),
       cursor: req.query.cursor ? req.query.cursor : undefined,
+      departureTime: req.query.departureTime ? req.query.departureTime.toString() : undefined,
     };
 
     const location = locationSchema.parse(queryParams);
@@ -155,6 +162,77 @@ export async function getRestaurants(req: Request, res: Response) {
         )
     );
     
+    // Process restaurants to add additional information
+    // Process restaurants in parallel with Promise.all
+    const enhancedResults = await Promise.all(
+      restaurants.results.map(async (restaurant) => {
+        let enhancedRestaurant = { ...restaurant };
+        
+        // Skip if restaurant doesn't have location data
+        if (!restaurant.geometry?.location) {
+          return enhancedRestaurant;
+        }
+        
+        // Calculate travel info if departure time is provided
+        if (validatedFilters.departureTime) {
+          console.log(`Calculating travel info with departure time: ${validatedFilters.departureTime}`);
+          
+          const travelInfo = await calculateTravelInfo(
+            { lat: location.lat, lng: location.lng },
+            {
+              lat: restaurant.geometry.location.lat,
+              lng: restaurant.geometry.location.lng
+            },
+            validatedFilters.departureTime
+          );
+          
+          // Add travel info to restaurant if available
+          if (travelInfo) {
+            enhancedRestaurant = {
+              ...enhancedRestaurant,
+              travel_time: travelInfo.travel_time,
+              travel_distance: travelInfo.travel_distance,
+              estimated_arrival_time: travelInfo.estimated_arrival_time
+            };
+          }
+        }
+        
+        // Fetch crowd information for all restaurants regardless of provider
+        try {
+          // If we have a place_id, use it; otherwise use coordinates
+          const locationParam = useGoogleMaps ? restaurant.place_id :
+            (restaurant.geometry?.location ?
+              {
+                lat: restaurant.geometry.location.lat,
+                lng: restaurant.geometry.location.lng
+              } : null);
+          
+          if (locationParam) {
+            console.log(`Fetching crowd information using ${typeof locationParam === 'string' ? 'place_id' : 'coordinates'}`);
+            const crowdInfo = await fetchCrowdInformation(locationParam);
+            if (crowdInfo) {
+              enhancedRestaurant = {
+                ...enhancedRestaurant,
+                crowd_level: crowdInfo.crowd_level,
+                peak_hours: crowdInfo.peak_hours
+              };
+            }
+          }
+        } catch (error) {
+          const identifier = restaurant.place_id ||
+            (restaurant.geometry?.location ?
+              `coordinates (${restaurant.geometry.location.lat},${restaurant.geometry.location.lng})` :
+              'unknown location');
+          console.warn(`Could not fetch crowd information for ${identifier}:`, error);
+        }
+        
+        return enhancedRestaurant;
+      })
+    );
+    
+    // Replace original results with enhanced results
+    restaurants.results = enhancedResults;
+    
     res.json({
       results: restaurants?.results,
       cursor: restaurants?.cursor,
@@ -180,6 +258,9 @@ export async function getRestaurantById(req: Request, res: Response) {
       location = locationSchema.parse(req.query) as Location;
     }
 
+    // Get departure time if provided
+    const departureTime = req.query.departureTime ? req.query.departureTime.toString() : undefined;
+
     // Determine which API to use based on environment variable
     const useGoogleMaps = process.env.PLACES_PROVIDER === 'google';
     
@@ -190,6 +271,53 @@ export async function getRestaurantById(req: Request, res: Response) {
     
     if (!restaurant) {
       return res.status(404).json({ error: "Restaurant not found" });
+    }
+
+    // Enhance restaurant with additional information
+    
+    // Calculate travel info if both location and departure time are provided
+    if (location && departureTime && restaurant.geometry?.location) {
+      const travelInfo = await calculateTravelInfo(
+        { lat: location.lat, lng: location.lng },
+        {
+          lat: restaurant.geometry.location.lat,
+          lng: restaurant.geometry.location.lng
+        },
+        departureTime
+      );
+      
+      // Add travel info to restaurant if available
+      if (travelInfo) {
+        restaurant.travel_time = travelInfo.travel_time;
+        restaurant.travel_distance = travelInfo.travel_distance;
+        restaurant.estimated_arrival_time = travelInfo.estimated_arrival_time;
+      }
+    }
+    
+    // Add crowd information for all restaurants regardless of provider
+    try {
+      // If we have a place_id, use it; otherwise use coordinates
+      const locationParam = useGoogleMaps ? restaurant.place_id : 
+        (restaurant.geometry?.location ?
+          {
+            lat: restaurant.geometry.location.lat,
+            lng: restaurant.geometry.location.lng
+          } : null);
+      
+      if (locationParam) {
+        console.log(`Fetching crowd information using ${typeof locationParam === 'string' ? 'place_id' : 'coordinates'}`);
+        const crowdInfo = await fetchCrowdInformation(locationParam);
+        if (crowdInfo) {
+          restaurant.crowd_level = crowdInfo.crowd_level;
+          restaurant.peak_hours = crowdInfo.peak_hours;
+        }
+      }
+    } catch (error) {
+      const identifier = restaurant.place_id ||
+        (restaurant.geometry?.location ?
+          `coordinates (${restaurant.geometry.location.lat},${restaurant.geometry.location.lng})` :
+          'unknown location');
+      console.warn(`Could not fetch crowd information for ${identifier}:`, error);
     }
 
     res.json(restaurant);

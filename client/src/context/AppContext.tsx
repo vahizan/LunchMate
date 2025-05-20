@@ -3,6 +3,12 @@ import { useToast } from '@/hooks/use-toast';
 import { Restaurant, Location, Filters, UserPreferences, VisitHistoryItem } from '@/types';
 
 // Default values
+// Helper function to get current time in HH:MM format
+const getCurrentTimeString = (): string => {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+};
+
 const DEFAULT_FILTERS: Filters = {
   radius: [0.5],
   cuisines: [],
@@ -10,7 +16,8 @@ const DEFAULT_FILTERS: Filters = {
   priceLevel: 2,
   historyDays: 14,
   excludeChains: false,
-  excludeCafe: false
+  excludeCafe: false,
+  departureTime: getCurrentTimeString()
 };
 
 const DEFAULT_LOCATION: Location = {
