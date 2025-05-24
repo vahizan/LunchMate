@@ -1,8 +1,8 @@
 import { config } from 'dotenv';
 import { defaultProxyManager, ProxyManager } from './proxy-manager';
 import fetch from 'node-fetch';
-import {parse} from 'node-html-parser';
 import xpath from 'xpath';
+import {JSDOM} from 'jsdom';
 
 // Load environment variables
 config();
@@ -188,10 +188,10 @@ export class ScraperService {
           
           // Get the HTML content from the response
           const html = responseData.results[0].content;
-          const parsedHtml = parse(html) as unknown as HTMLElement;
+          const dom = new JSDOM(html)
           
           // Extract crowd level data using the existing function
-          const crowdData = await this.extractCrowdDataFromPage(parsedHtml, restaurantName);
+          const crowdData = await this.extractCrowdDataFromPage(dom, restaurantName);
           
           return crowdData;
         } catch (error) {
@@ -221,7 +221,7 @@ export class ScraperService {
    * @param page Puppeteer Page object or mock Page object with HTML content
    * @param restaurantName Name of the restaurant
    */
-  public async extractCrowdDataFromPage(page: HTMLElement, restaurantName?: string): Promise<CrowdLevelData|undefined> {
+  public async extractCrowdDataFromPage(dom: JSDOM, restaurantName?: string): Promise<CrowdLevelData|undefined> {
     console.log('Extracting crowd data from page...');
     
     // Default result with unknown crowd level
@@ -236,7 +236,8 @@ export class ScraperService {
     try {
       // Check if popular times section exists
       const popularTimeXPath = "//*[contains(text(), 'Popular times')]";
-      const popularTimeNodes = xpath.select(popularTimeXPath, page);
+      
+      const popularTimeNodes = xpath.select(popularTimeXPath, dom.window.document);
       const popularTimesExists = Array.isArray(popularTimeNodes) && popularTimeNodes.length > 0;
       
       if (!popularTimesExists) {
@@ -252,9 +253,9 @@ export class ScraperService {
       const checkedElementXPath = '//*[@aria-checked="true"]';
       
       // Try to find the current hour element or the checked element
-      let currentCrowdNodes = xpath.select(currentHourXPath, page);
+      let currentCrowdNodes = xpath.select(currentHourXPath, dom.window.document);
       if (!Array.isArray(currentCrowdNodes) || currentCrowdNodes.length === 0) {
-        currentCrowdNodes = xpath.select(checkedElementXPath, page);
+        currentCrowdNodes = xpath.select(checkedElementXPath, dom.window.document);
       }
       
       let crowdLevel = 'unknown';
@@ -262,7 +263,7 @@ export class ScraperService {
       
       // Extract busyness level text
       const busynessXPath = "//*[contains(text(), 'busy')]";
-      const busynessNodes = xpath.select(busynessXPath, page);
+      const busynessNodes = xpath.select(busynessXPath, dom.window.document);
       let busynessLevel = '';
       
       if (Array.isArray(busynessNodes) && busynessNodes.length > 0) {
@@ -283,33 +284,7 @@ export class ScraperService {
       }
       
       // If we couldn't determine from text, try to estimate from attributes
-      if (crowdLevel === 'unknown' && Array.isArray(currentCrowdNodes) && currentCrowdNodes.length > 0) {
-        const currentCrowdElement = currentCrowdNodes[0];
-        
-        // Try to get height attribute or style attribute
-        if ('getAttribute' in currentCrowdElement && typeof currentCrowdElement.getAttribute === 'function') {
-          const heightAttr = currentCrowdElement.getAttribute('height');
-          const styleAttr = currentCrowdElement.getAttribute('style');
-          
-          if (heightAttr) {
-            const height = parseFloat(heightAttr);
-            if (!isNaN(height)) {
-              // Estimate percentage based on typical values
-              crowdPercentage = Math.round((height / 100) * 100);
-            }
-          } else if (styleAttr && styleAttr.includes('height')) {
-            // Try to extract height from style attribute
-            const heightMatch = styleAttr.match(/height:\s*(\d+)px/);
-            if (heightMatch && heightMatch[1]) {
-              const height = parseFloat(heightMatch[1]);
-              if (!isNaN(height)) {
-                // Estimate percentage based on typical values
-                crowdPercentage = Math.round((height / 100) * 100);
-              }
-            }
-          }
-        }
-        
+      if (crowdLevel === 'unknown' && Array.isArray(currentCrowdNodes) && currentCrowdNodes.length > 0) {        
         // Determine crowd level from percentage if available
         if (crowdLevel === 'unknown' && crowdPercentage !== undefined) {
           if (crowdPercentage >= 67) {
@@ -324,7 +299,7 @@ export class ScraperService {
       
       // Extract average time spent
       const avgTimeSpentXpath = "//*[contains(text(), 'People typically spend')]";
-      const avgTimeSpentNodes = xpath.select(avgTimeSpentXpath, page);
+      const avgTimeSpentNodes = xpath.select(avgTimeSpentXpath, dom.window.document);
       let averageTimeSpent = '';
       
       if (Array.isArray(avgTimeSpentNodes) && avgTimeSpentNodes.length > 0) {
@@ -341,7 +316,6 @@ export class ScraperService {
       return {
         restaurantName,
         crowdLevel: crowdLevel as 'busy' | 'moderate' | 'not_busy' | 'unknown',
-        crowdPercentage,
         averageTimeSpent,
         lastUpdated: new Date(),
         source: 'google'

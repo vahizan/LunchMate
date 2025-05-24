@@ -10,7 +10,8 @@
     "check": "tsc",
     "db:push": "drizzle-kit push",
     "test": "jest",
-    "test:hooks": "jest client/src/hooks/__tests__"
+    "test:hooks": "jest client/src/hooks/__tests__",
+    "debug:scraper": "node --inspect-brk ./node_modules/jest/bin/jest --testPathPattern='scraper.test'"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.7.2",
@@ -61,12 +62,12 @@
     "express-session": "^1.18.1",
     "framer-motion": "^11.13.1",
     "input-otp": "^1.2.4",
+    "jsdom": "^26.1.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.453.0",
     "memorystore": "^1.6.7",
     "node-cron": "^4.0.5",
     "node-fetch": "^2.7.0",
-    "node-html-parser": "^7.0.1",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
     "puppeteer": "^24.8.2",
