@@ -339,6 +339,37 @@ export function useRestaurants(props?: { limit?: string }) {
       }
       
       const restaurant = await detailsResponse.json();
+      
+      // Fetch crowd level data if restaurant has a name
+      if (restaurant.name) {
+        try {
+          console.log(`Fetching crowd level data for restaurant: ${restaurant.name}`);
+          
+          // Create location string for the API call if location is available
+          const params = new URLSearchParams({
+            address: restaurant.address,
+            postcode: restaurant.postcode,
+            restaurantName: restaurant.name
+          });
+          
+          const crowdResponse = await fetch(`/api/restaurants/${randomId}/crowd-level?${params.toString()}`);
+          
+          if (crowdResponse.ok) {
+            const crowdData = await crowdResponse.json();
+            if (crowdData.success && crowdData.data) {
+              // Merge crowd data with restaurant data
+              restaurant.crowd_level = crowdData.data.crowdLevel;
+              restaurant.average_time_spent = crowdData.data.averageTimeSpent;
+              restaurant.peak_hours = crowdData.data.peakHours;
+              console.log(`Successfully fetched crowd level data: ${crowdData.data.crowdLevel}`);
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching crowd level data:", error);
+          // Continue with the restaurant data we have, even if crowd data fetch fails
+        }
+      }
+      
       setHighlightedRestaurant(restaurant);
       
       // Update previous location and filters

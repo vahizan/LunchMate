@@ -1,5 +1,4 @@
 import { config } from 'dotenv';
-import { defaultProxyManager, ProxyManager } from './proxy-manager';
 import fetch from 'node-fetch';
 import xpath from 'xpath';
 import {JSDOM} from 'jsdom';
@@ -63,15 +62,13 @@ export interface OxylabsResponse {
  */
 export class ScraperService {
   private config: ScraperConfig;
-  private proxyManager: ProxyManager;
   private proxyUsageCount: number = 0;
   
   /**
    * Creates a new instance of the ScraperService
    * @param config Configuration options for the scraper
-   * @param proxyManager Optional custom proxy manager instance
    */
-  constructor(config: ScraperConfig = {}, proxyManager?: ProxyManager) {
+  constructor(config: ScraperConfig = {}) {
     this.config = {
       timeout: DEFAULT_TIMEOUT,
       retryAttempts: DEFAULT_RETRY_ATTEMPTS,
@@ -81,14 +78,10 @@ export class ScraperService {
       ...config
     };
     
-    // Use provided proxy manager or default instance
-    this.proxyManager = proxyManager || defaultProxyManager;
-    
     console.log('ScraperService initialized with config:', {
       timeout: this.config.timeout,
       retryAttempts: this.config.retryAttempts,
       oxyLabsConfigured: !!(this.config.oxyLabsUsername && this.config.oxyLabsPassword),
-      proxyManager: this.proxyManager ? 'Configured' : 'Not configured'
     });
   }
   
@@ -139,13 +132,6 @@ export class ScraperService {
     console.log(`Extracting crowd level data for restaurant: ${restaurantName}${location ? ` in ${location}` : ''}`);
     
     try {
-      // Apply rate limiting to avoid overusing proxies
-      await this.proxyManager.applyRateLimit();
-      
-      // Increment proxy usage count
-      this.proxyUsageCount++;
-      
-      const startTime = Date.now();
       const { result: data, retryCount } = await this.retry(async () => {
         try {
           // Construct search query
@@ -405,20 +391,11 @@ export async function fetchCrowdLevelData(
   restaurantName: string,
   location?: string,
   config?: ScraperConfig,
-  proxyManager?: ProxyManager
 ): Promise<ScrapingResult> {
   // Create a new scraper instance with the provided config and proxy manager
-  const scraper = new ScraperService(config || {}, proxyManager);
+  const scraper = new ScraperService(config || {});
   
   try {
-    // Initialize proxy manager if provided
-    if (proxyManager && typeof proxyManager.initialize === 'function') {
-      try {
-        await proxyManager.initialize();
-      } catch (error) {
-        console.warn('Failed to initialize proxy manager:', error);
-      }
-    }
     
     const result = await scraper.extractCrowdLevelData(restaurantName, location);
     

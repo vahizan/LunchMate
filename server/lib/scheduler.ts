@@ -1,7 +1,6 @@
 import { config } from 'dotenv';
 import cron from 'node-cron';
 import { ScraperService, CrowdLevelData, ScrapingResult } from './scraper';
-import { ProxyManager, defaultProxyManager } from './proxy-manager';
 
 // Load environment variables
 config();
@@ -114,7 +113,6 @@ export class Scheduler {
   constructor(
     config: Partial<SchedulerConfig> = {},
     scraperService?: ScraperService,
-    proxyManager?: ProxyManager
   ) {
     // Default configuration
     this.config = {
@@ -132,7 +130,6 @@ export class Scheduler {
     
     // Use provided services or create new instances
     this.scraperService = scraperService || new ScraperService();
-    this.proxyManager = proxyManager || defaultProxyManager;
     
     console.log('Scheduler initialized with config:', {
       maxConcurrentJobs: this.config.maxConcurrentJobs,
@@ -576,9 +573,8 @@ export class Scheduler {
  */
 export function createScheduler(
   scraperService?: ScraperService,
-  proxyManager?: ProxyManager
 ): Scheduler {
-  const scheduler = new Scheduler({}, scraperService, proxyManager);
+  const scheduler = new Scheduler({}, scraperService);
   scheduler.start();
   return scheduler;
 }

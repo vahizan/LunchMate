@@ -1,6 +1,5 @@
 import { Scheduler, ScrapingPriority, JobStatus, ScrapingTarget } from '../scheduler';
 import { ScraperService } from '../scraper';
-import { ProxyManager } from '../proxy-manager';
 
 describe('Scheduler Service', () => {
   // Mock ScraperService
@@ -18,18 +17,6 @@ describe('Scheduler Service', () => {
     closeBrowser: jest.fn()
   } as unknown as ScraperService;
 
-  // Mock ProxyManager
-  const mockProxyManager = {
-    getProxy: jest.fn().mockResolvedValue({
-      server: 'http://test-proxy.com:8080',
-      username: 'testuser',
-      password: 'testpass'
-    }),
-    reportProxySuccess: jest.fn(),
-    reportProxyFailure: jest.fn(),
-    applyRateLimit: jest.fn().mockResolvedValue(undefined),
-    shouldRotateProxy: jest.fn().mockReturnValue(false)
-  } as unknown as ProxyManager;
 
   // Test restaurant
   const testRestaurant: ScrapingTarget = {
@@ -44,7 +31,7 @@ describe('Scheduler Service', () => {
   });
 
   test('Scheduler should initialize with default config', () => {
-    const scheduler = new Scheduler({}, mockScraperService, mockProxyManager);
+    const scheduler = new Scheduler({}, mockScraperService);
     expect(scheduler).toBeDefined();
   });
 
@@ -53,13 +40,13 @@ describe('Scheduler Service', () => {
       maxConcurrentJobs: 5,
       highPriorityInterval: '*/10 * * * *',
       batchSize: 10
-    }, mockScraperService, mockProxyManager);
+    }, mockScraperService);
     
     expect(scheduler).toBeDefined();
   });
 
   test('Scheduler should schedule a job', () => {
-    const scheduler = new Scheduler({}, mockScraperService, mockProxyManager);
+    const scheduler = new Scheduler({}, mockScraperService);
     
     const job = scheduler.scheduleJob(testRestaurant, ScrapingPriority.HIGH);
     
@@ -70,7 +57,7 @@ describe('Scheduler Service', () => {
   });
 
   test('Scheduler should schedule a batch of jobs', () => {
-    const scheduler = new Scheduler({}, mockScraperService, mockProxyManager);
+    const scheduler = new Scheduler({}, mockScraperService);
     
     const restaurants = [
       { ...testRestaurant, id: 'test-1', name: 'Restaurant 1' },
@@ -86,7 +73,7 @@ describe('Scheduler Service', () => {
   });
 
   test('Scheduler should cancel a job', () => {
-    const scheduler = new Scheduler({}, mockScraperService, mockProxyManager);
+    const scheduler = new Scheduler({}, mockScraperService);
     
     const job = scheduler.scheduleJob(testRestaurant, ScrapingPriority.MEDIUM);
     const cancelled = scheduler.cancelJob(job.id);
@@ -99,7 +86,7 @@ describe('Scheduler Service', () => {
   });
 
   test('Scheduler should schedule popular restaurants', () => {
-    const scheduler = new Scheduler({}, mockScraperService, mockProxyManager);
+    const scheduler = new Scheduler({}, mockScraperService);
     
     const popularRestaurants = [
       { ...testRestaurant, id: 'popular-1', name: 'Popular Restaurant 1', popularity: 90 },
@@ -121,7 +108,7 @@ describe('Scheduler Service', () => {
   });
 
   test('Scheduler should update configuration', () => {
-    const scheduler = new Scheduler({}, mockScraperService, mockProxyManager);
+    const scheduler = new Scheduler({}, mockScraperService);
     
     // Mock the stop and start methods
     scheduler.stop = jest.fn();
