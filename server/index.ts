@@ -1,22 +1,8 @@
-import express, { type Request, Response, NextFunction } from "express";
+import express, { Request, Response, NextFunction } from "express";
+import { log, serveStatic, setupVite } from "./vite";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
-import { ScraperService } from "./lib/scraper";
-import { defaultProxyManager } from "./lib/proxy-manager";
-import { Scheduler, ScrapingPriority } from "./lib/scheduler";
-import { defaultCrowdDataRepository } from "./models/crowd-data";
 import { scrapingConfig } from "./config/scraper-config";
-import cron from "node-cron";
-
-// Initialize scraping system components
-const scraperService = new ScraperService(scrapingConfig.scraper, defaultProxyManager);
-const scheduler = new Scheduler(scrapingConfig.scheduler, scraperService, defaultProxyManager);
-
-// Initialize proxy manager
-defaultProxyManager.initialize().catch(error => {
-  console.error("Failed to initialize proxy manager:", error);
-  // Continue even if proxy initialization fails
-});
+import { ScraperService } from "./lib/scraper";
 
 const app = express();
 app.use(express.json());
@@ -52,36 +38,8 @@ app.use((req, res, next) => {
   next();
 });
 
+
 (async () => {
-  // Start the scheduler
-  scheduler.start();
-  console.log("Web scraping scheduler started");
-
-  // Schedule regular cleanup of expired crowd data
-  cron.schedule(scrapingConfig.crowdDataRepository.cleanupInterval, async () => {
-    try {
-      const deletedCount = await defaultCrowdDataRepository.deleteExpiredData();
-      console.log(`Cleaned up ${deletedCount} expired crowd data records`);
-    } catch (error) {
-      console.error("Failed to clean up expired crowd data:", error);
-    }
-  });
-
-  // Schedule popular restaurants for regular updates
-  try {
-    // In a real implementation, you would fetch popular restaurants from your database
-    // For now, we'll use a placeholder approach with some example restaurants
-    const popularRestaurants = [
-      { id: "popular1", name: "Popular Restaurant 1", popularity: 90 },
-      { id: "popular2", name: "Popular Restaurant 2", popularity: 85 },
-      { id: "popular3", name: "Popular Restaurant 3", popularity: 80 },
-    ];
-    
-    scheduler.schedulePopularRestaurants(popularRestaurants);
-    console.log(`Scheduled regular updates for ${popularRestaurants.length} popular restaurants`);
-  } catch (error) {
-    console.error("Failed to schedule popular restaurants:", error);
-  }
 
   const server = await registerRoutes(app);
 
@@ -117,14 +75,6 @@ app.use((req, res, next) => {
   // Handle graceful shutdown
   const gracefulShutdown = async () => {
     console.log("Shutting down server...");
-    
-    // Stop the scheduler
-    scheduler.stop();
-    console.log("Web scraping scheduler stopped");
-    
-    // Close the scraper browser
-    await scraperService.closeBrowser();
-    console.log("Scraper browser closed");
     
     // Close the server
     server.close(() => {

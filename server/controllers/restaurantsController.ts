@@ -4,7 +4,6 @@ import {
   fetchRestaurants as fetchGoogleRestaurants,
   fetchRestaurantDetails as fetchGoogleRestaurantDetails,
   calculateTravelInfo,
-  fetchCrowdInformation
 } from "../lib/maps";
 import { defaultScraper } from "../lib/scraper";
 import {
@@ -198,35 +197,6 @@ export async function getRestaurants(req: Request, res: Response) {
           }
         }
         
-        // Fetch crowd information for all restaurants regardless of provider
-        try {
-          // If we have a place_id, use it; otherwise use coordinates
-          const locationParam = useGoogleMaps ? restaurant.place_id :
-            (restaurant.geometry?.location ?
-              {
-                lat: restaurant.geometry.location.lat,
-                lng: restaurant.geometry.location.lng
-              } : null);
-          
-          if (locationParam) {
-            console.log(`Fetching crowd information using ${typeof locationParam === 'string' ? 'place_id' : 'coordinates'}`);
-            const crowdInfo = await fetchCrowdInformation(locationParam);
-            if (crowdInfo) {
-              enhancedRestaurant = {
-                ...enhancedRestaurant,
-                crowd_level: crowdInfo.crowd_level,
-                peak_hours: crowdInfo.peak_hours
-              };
-            }
-          }
-        } catch (error) {
-          const identifier = restaurant.place_id ||
-            (restaurant.geometry?.location ?
-              `coordinates (${restaurant.geometry.location.lat},${restaurant.geometry.location.lng})` :
-              'unknown location');
-          console.warn(`Could not fetch crowd information for ${identifier}:`, error);
-        }
-        
         return enhancedRestaurant;
       })
     );
@@ -293,32 +263,6 @@ export async function getRestaurantById(req: Request, res: Response) {
         restaurant.travel_distance = travelInfo.travel_distance;
         restaurant.estimated_arrival_time = travelInfo.estimated_arrival_time;
       }
-    }
-    
-    // Add crowd information for all restaurants regardless of provider
-    try {
-      // If we have a place_id, use it; otherwise use coordinates
-      const locationParam = useGoogleMaps ? restaurant.place_id : 
-        (restaurant.geometry?.location ?
-          {
-            lat: restaurant.geometry.location.lat,
-            lng: restaurant.geometry.location.lng
-          } : null);
-      
-      if (locationParam) {
-        console.log(`Fetching crowd information using ${typeof locationParam === 'string' ? 'place_id' : 'coordinates'}`);
-        const crowdInfo = await fetchCrowdInformation(locationParam);
-        if (crowdInfo) {
-          restaurant.crowd_level = crowdInfo.crowd_level;
-          restaurant.peak_hours = crowdInfo.peak_hours;
-        }
-      }
-    } catch (error) {
-      const identifier = restaurant.place_id ||
-        (restaurant.geometry?.location ?
-          `coordinates (${restaurant.geometry.location.lat},${restaurant.geometry.location.lng})` :
-          'unknown location');
-      console.warn(`Could not fetch crowd information for ${identifier}:`, error);
     }
 
     res.json(restaurant);

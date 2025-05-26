@@ -149,7 +149,7 @@ export class ScraperService {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': 'Basic ' + Buffer.from(`${this.config.oxyLabsUsername}:${this.config.oxyLabsPassword}`).toString('base64')
+              'Authorization': 'Basic ' + Buffer.from(`${process.env.SCRAPE_OXYLABS_USER}:${process.env.SCRAPE_OXYLABS_PASS}`).toString('base64')
             },
             body: JSON.stringify({
               source: 'google_search',
