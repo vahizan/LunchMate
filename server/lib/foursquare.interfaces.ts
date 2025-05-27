@@ -59,7 +59,6 @@ export interface Location {
     photos?: Array<PlacePhoto>;
     hours?: {
       display?: string[];
-      is_open_now?: boolean;
       open_now?: boolean;
       regular?: Array<{
         close: string;

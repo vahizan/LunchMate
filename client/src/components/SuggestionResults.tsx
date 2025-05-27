@@ -1,8 +1,10 @@
 import { useEffect, useRef } from "react";
+import { useLocation } from "wouter";
 import { useAppContext } from "@/context/AppContext";
 import { Button } from "@/components/ui/button";
 import RestaurantCard from "./RestaurantCard";
 import { useRestaurants } from "@/hooks/use-restaurants";
+import { ArrowLeft } from "lucide-react";
 
 // Skeleton loading component for restaurant cards
 const SkeletonCard = () => (
@@ -21,6 +23,7 @@ const SkeletonCard = () => (
 );
 
 export default function SuggestionResults() {
+  const [_, navigate] = useLocation();
   const { location, filters, setTeamModalOpen } = useAppContext();
   const {
     data: restaurants,
@@ -75,7 +78,18 @@ export default function SuggestionResults() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">Suggestions</h2>
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={() => navigate("/")}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-1"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Filters
+          </Button>
+          <h2 className="text-xl font-semibold">Suggestions</h2>
+        </div>
       </div>
 
       {/* Error state */}

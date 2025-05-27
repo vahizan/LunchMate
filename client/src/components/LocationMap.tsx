@@ -1,77 +1,42 @@
-import { useContext, useEffect, useRef } from "react";
-import { AppContext, useAppContext } from "@/context/AppContext";
-import { Button } from "@/components/ui/button";
-import { MapPin } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useAppContext } from "@/context/AppContext";
 import { usePlaces } from "@/hooks/use-places";
 import { Location } from "@/types";
 
 interface LocationMapProps {
   location?: Location;
-  onMapClick?: () => void;
 }
 
-export const LocationMap = ({ location, onMapClick }: LocationMapProps) => {
-  const { userPreferences } = useContext(AppContext);
+export const LocationMap = ({ location }: LocationMapProps) => {
+  const { location: savedLocation } = useAppContext();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const { showMap, providerType } = usePlaces();
-
-  // Use provided location or default from user preferences
-  const mapLocation = location || userPreferences?.defaultLocation;
+  const [mapLocation, setMapLocation] = useState(!!location ? location : savedLocation);
 
   // Initialize map with location
-  useEffect(() => {
-    console.log(`LocationMap: Map useEffect triggered (using ${providerType} provider), location:`, mapLocation);
-    
-    if (mapContainerRef.current && mapLocation) {
-      console.log(`LocationMap: Showing ${providerType} map with location:`, mapLocation);
-      const map = showMap(mapContainerRef.current, {
-        lat: mapLocation.lat || 0,
-        lng: mapLocation.lng || 0
-      });
-      console.log('LocationMap: Map initialization result:', !!map);
-    } else {
-      console.log('LocationMap: Map container ref or location not available');
-    }
-  }, [mapLocation, showMap, providerType]);
+  useEffect(()=> {
+      if(!mapLocation){
+        setMapLocation(savedLocation)
+      }
+  }, [savedLocation]);
 
-  // Get API key for static map fallback
-  const googleApiKey = process.env.VITE_GOOGLE_MAPS_API_KEY;
-  const foursquareApiKey = process.env.VITE_FOURSQUARE_PLACES_API_KEY;
-  // Determine coordinates for static map fallback
-  const lat = mapLocation?.lat || 0;
-  const lng = mapLocation?.lng || 0;
-  
-  // Get static map URL based on provider
-  const getStaticMapUrl = () => {
-    if (!mapLocation?.lat || !mapLocation?.lng) return undefined;
-    
-    // For hybrid provider or google provider, use Google Maps
-    if ((providerType === 'hybrid' || providerType === 'google') && googleApiKey) {
-      // Google Maps static API
-      return `url("https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=13&size=600x200&key=${googleApiKey}")`;
-    } else {
-      // OpenStreetMap for Foursquare (doesn't require API key)
-      return `url("https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=14&size=600x200&markers=${lat},${lng},red")`;
+  useEffect(() => {
+    if(mapContainerRef.current && mapLocation){
+      showMap(mapContainerRef?.current, {
+            lat: mapLocation?.lat,
+            lng: mapLocation?.lng
+      });
     }
-  };
   
+  }, [mapLocation, showMap]);
+
   return (
     <div
       id="map"
       ref={mapContainerRef}
       className="h-48 bg-gray-100 relative"
-    >
-      <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-        <Button 
-          variant="default" 
-          className="bg-white text-gray-800 hover:bg-gray-100"
-          onClick={onMapClick}
-        >
-          <MapPin className="mr-2 h-4 w-4 text-primary" />
-          Choose on map
-        </Button>
-      </div>
-    </div>
+      data-testid="map-container"
+    />
   );
 }
 

@@ -258,7 +258,15 @@ export async function calculateTravelInfo(
     const travelDistanceKm = travelDistanceMeters / 1000;
     
     // Calculate estimated arrival time
-    const now = departureTime ? new Date(departureTime) : new Date();
+    let now;
+    if (departureTime) {
+      // Use the same parsed hours and minutes from earlier
+      const [hours, minutes] = departureTime.split(':').map(Number);
+      now = new Date();
+      now.setHours(hours, minutes, 0, 0);
+    } else {
+      now = new Date();
+    }
     const arrivalTime = new Date(now.getTime() + (travelTimeSeconds * 1000));
     
     return {

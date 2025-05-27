@@ -235,11 +235,11 @@ export function processPlace(place: Place, fieldsArray: string[], userLocation?:
         }
         break;
         
-      case 'opening_hours':
+      case 'hours':
         if (place.hours) {
           result.opening_hours = {
             hours: place.hours,
-            open_now: place.hours?.is_open_now || false,
+            open_now: place.hours?.open_now || false,
             weekday_text: place.hours?.display || []
           };
         }
@@ -289,8 +289,8 @@ export function processPlace(place: Place, fieldsArray: string[], userLocation?:
         break;
         
       case 'open_now':
-        if (place.hours) result.open_now = place.hours?.is_open_now || false;
-        break;
+        if (place.hours) result.open_now = place.hours?.open_now || false;
+        break; 
     }
   }
   

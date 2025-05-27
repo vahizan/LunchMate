@@ -12,11 +12,6 @@ export default function LocationInput() {
     setLocation(newLocation);
   };
 
-  // Handle map click (could be used to open a modal with a larger map)
-  const handleMapClick = () => {
-    console.log("Map clicked, could open a modal with a larger map");
-    // Implementation for map modal would go here
-  };
 
   return (
     <div className="mb-6">
@@ -29,7 +24,6 @@ export default function LocationInput() {
         
         <LocationMap
           location={location}
-          onMapClick={handleMapClick}
         />
       </Card>
     </div>
