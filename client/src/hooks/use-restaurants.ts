@@ -347,10 +347,12 @@ export function useRestaurants(props?: { limit?: string }) {
           
           // Create location string for the API call if location is available
           const params = new URLSearchParams({
-            address: restaurant.address,
-            postcode: restaurant.postcode,
+            address: restaurant.formatted_address,
             restaurantName: restaurant.name
           });
+
+          console.log("RESTAURANT", restaurant);
+
           
           const crowdResponse = await fetch(`/api/restaurants/${randomId}/crowd-level?${params.toString()}`);
           

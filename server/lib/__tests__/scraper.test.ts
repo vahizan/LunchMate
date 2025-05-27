@@ -50,8 +50,8 @@ function createMockResponse(options: {
     let scraper: ScraperService;
     
     beforeEach(() => {
-      // Create a new scraper instance with test configuration
-      scraper = new ScraperService({
+      // Get the singleton instance with test configuration
+      scraper = ScraperService.getInstance({
         oxyLabsUsername: 'test-username',
         oxyLabsPassword: 'test-password',
         retryAttempts: 1
@@ -161,8 +161,9 @@ function createMockResponse(options: {
     });
     
     test('should handle missing Oxylabs credentials', async () => {
-      // Create scraper with no credentials
-      const noCredsScraper = new ScraperService({
+      // Update singleton instance with no credentials
+      const noCredsScraper = ScraperService.getInstance();
+      noCredsScraper.updateConfig({
         oxyLabsUsername: undefined,
         oxyLabsPassword: undefined
       });
@@ -260,7 +261,7 @@ function createMockResponse(options: {
     test('get crowd data from example html', async () => {
       const html = readFileSync(join(__dirname, './../../../example_scrape_data.html'), 'utf-8');
       const exampleHTML = new JSDOM(html);
-      const scraper = new ScraperService();
+      const scraper = ScraperService.getInstance();
       const result = await scraper.extractCrowdDataFromPage(exampleHTML);
       expect(result).toEqual({
         "averageTimeSpent": "People typically spend up to 3 hours here",

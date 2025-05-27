@@ -128,8 +128,8 @@ export class Scheduler {
       ...config
     };
     
-    // Use provided services or create new instances
-    this.scraperService = scraperService || new ScraperService();
+    // Use provided services or get the singleton instance
+    this.scraperService = scraperService || ScraperService.getInstance();
     
     console.log('Scheduler initialized with config:', {
       maxConcurrentJobs: this.config.maxConcurrentJobs,

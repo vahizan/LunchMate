@@ -59,16 +59,17 @@ export interface OxylabsResponse {
 
 /**
  * Scraper Service for extracting crowd level data from Google search results using Oxylabs API
+ * Implemented as a singleton to ensure only one instance exists throughout the application
  */
 export class ScraperService {
   private config: ScraperConfig;
-  private proxyUsageCount: number = 0;
+  private static instance: ScraperService | null = null;
   
   /**
-   * Creates a new instance of the ScraperService
+   * Private constructor to prevent direct instantiation
    * @param config Configuration options for the scraper
    */
-  constructor(config: ScraperConfig = {}) {
+  private constructor(config: ScraperConfig = {}) {
     this.config = {
       timeout: DEFAULT_TIMEOUT,
       retryAttempts: DEFAULT_RETRY_ATTEMPTS,
@@ -81,8 +82,21 @@ export class ScraperService {
     console.log('ScraperService initialized with config:', {
       timeout: this.config.timeout,
       retryAttempts: this.config.retryAttempts,
+      oxyLabsUsername: this.config.oxyLabsUsername, // Log the actual username
       oxyLabsConfigured: !!(this.config.oxyLabsUsername && this.config.oxyLabsPassword),
     });
+  }
+
+  /**
+   * Get the singleton instance of ScraperService
+   * @param config Configuration options for the scraper (only used when creating the instance for the first time)
+   * @returns The singleton ScraperService instance
+   */
+  public static getInstance(config: ScraperConfig = {}): ScraperService {
+    if (!ScraperService.instance) {
+      ScraperService.instance = new ScraperService(config);
+    }
+    return ScraperService.instance;
   }
   
   /**
@@ -137,19 +151,21 @@ export class ScraperService {
           // Construct search query
           const searchQuery = `${restaurantName}${location ? ` ${location}` : ''} popular times`;
           
-          // Check if Oxylabs credentials are configured
           if (!this.config.oxyLabsUsername || !this.config.oxyLabsPassword) {
             throw new Error('Oxylabs credentials not configured');
           }
           
+        
           console.log(`Making Oxylabs API request for: ${searchQuery}`);
+          console.log(`Making Oxylabs API request with config username: "${this.config.oxyLabsUsername}"`);
+          console.log(`Username from env: "${process.env.SCRAPE_OXYLABS_USER}"`);
           
           // Make request to Oxylabs SERP API using node-fetch
           const response = await fetch('https://realtime.oxylabs.io/v1/queries', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': 'Basic ' + Buffer.from(`${process.env.SCRAPE_OXYLABS_USER}:${process.env.SCRAPE_OXYLABS_PASS}`).toString('base64')
+              'Authorization': 'Basic ' + Buffer.from(`${this.config.oxyLabsUsername}:${this.config.oxyLabsPassword}`).toString('base64')
             },
             body: JSON.stringify({
               source: 'google_search',
@@ -174,6 +190,7 @@ export class ScraperService {
           
           // Get the HTML content from the response
           const html = responseData.results[0].content;
+          console.log("HTML MAAYN", html);
           const dom = new JSDOM(html)
           
           // Extract crowd level data using the existing function
@@ -378,9 +395,6 @@ export class ScraperService {
   }
 }
 
-// Export a default instance with default configuration
-export const defaultScraper = new ScraperService();
-
 /**
  * Convenience function to extract crowd level data for a restaurant
  * @param restaurantName Name of the restaurant to search for
@@ -392,11 +406,13 @@ export async function fetchCrowdLevelData(
   location?: string,
   config?: ScraperConfig,
 ): Promise<ScrapingResult> {
-  // Create a new scraper instance with the provided config and proxy manager
-  const scraper = new ScraperService(config || {});
+  // Use the singleton instance with updated config if provided
+  const scraper = ScraperService.getInstance();
+  if (config) {
+    scraper.updateConfig(config);
+  }
   
   try {
-    
     const result = await scraper.extractCrowdLevelData(restaurantName, location);
     
     return result;

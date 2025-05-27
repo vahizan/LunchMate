@@ -5,7 +5,7 @@ import {
   fetchRestaurantDetails as fetchGoogleRestaurantDetails,
   calculateTravelInfo,
 } from "../lib/maps";
-import { defaultScraper } from "../lib/scraper";
+import { ScraperService } from "../lib/scraper";
 import {
   fetchRestaurants as fetchFoursquareRestaurants,
   fetchRestaurantDetails as fetchFoursquareRestaurantDetails,
@@ -311,17 +311,10 @@ export async function getCrowdLevelData(req: Request, res: Response) {
       return res.status(400).json({ error: "Restaurant ID is required" });
     }
 
-   
-    // Get location from query parameters if available
-    let locationString: string | undefined = undefined;
-    if (req.query.address && req.query.postcode) {
-      locationString = `${req.query.address} ${req.query.postcode}`;
-    }
-
 
     // Call the scraper service to extract crowd level data
     console.log(`Extracting crowd level data for restaurant: ${req.query.restaurantName}`);
-    const crowdData = await defaultScraper.extractCrowdLevelData(req.query.restaurantName?.toString() || "", locationString);
+    const crowdData = await ScraperService.getInstance().extractCrowdLevelData(req.query.restaurantName?.toString() || "", req.query.address?.toString() || "");
     
     res.json(crowdData);
   } catch (error) {
