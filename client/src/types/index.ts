@@ -81,6 +81,7 @@ export interface Restaurant {
     hour: number; // 0-23
     level: 'busy' | 'moderate' | 'not_busy';
   }>;
+  average_time_spent?: string;
   
   // Custom additions
   votes?: number;

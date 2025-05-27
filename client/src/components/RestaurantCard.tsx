@@ -4,7 +4,7 @@ import { Restaurant } from "@/types";
 import { AppContext } from "@/context/AppContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Heart, Phone, Globe, MapPin, Clock, Info, Menu, Car, Users } from "lucide-react";
+import { Heart, Phone, Globe, MapPin, Clock, Info, Menu, Car, Users, Timer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
@@ -231,6 +231,16 @@ export default function RestaurantCard({ restaurant, highlight }: RestaurantCard
                 ))}
               </div>
             </details>
+          </div>
+        )}
+
+        {/* Average Time Spent */}
+        {restaurant.average_time_spent && restaurant.average_time_spent !== 'unknown' && (
+          <div className="mt-3 flex items-center text-sm">
+            <Timer className="h-4 w-4 mr-1 text-gray-500" />
+            <span className="text-gray-700">
+              {restaurant.average_time_spent}
+            </span>
           </div>
         )}
 

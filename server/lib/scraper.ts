@@ -157,8 +157,6 @@ export class ScraperService {
           
         
           console.log(`Making Oxylabs API request for: ${searchQuery}`);
-          console.log(`Making Oxylabs API request with config username: "${this.config.oxyLabsUsername}"`);
-          console.log(`Username from env: "${process.env.SCRAPE_OXYLABS_USER}"`);
           
           // Make request to Oxylabs SERP API using node-fetch
           const response = await fetch('https://realtime.oxylabs.io/v1/queries', {
@@ -170,8 +168,6 @@ export class ScraperService {
             body: JSON.stringify({
               source: 'google_search',
               query: searchQuery,
-              parse: true,
-              render: 'html'
             }),
             timeout: this.config.timeout
           });
@@ -190,10 +186,7 @@ export class ScraperService {
           
           // Get the HTML content from the response
           const html = responseData.results[0].content;
-          console.log("HTML MAAYN", html);
           const dom = new JSDOM(html)
-          
-          // Extract crowd level data using the existing function
           const crowdData = await this.extractCrowdDataFromPage(dom, restaurantName);
           
           return crowdData;
@@ -268,22 +261,23 @@ export class ScraperService {
       const busynessXPath = "//*[contains(text(), 'busy')]";
       const busynessNodes = xpath.select(busynessXPath, dom.window.document);
       let busynessLevel = '';
+
       
       if (Array.isArray(busynessNodes) && busynessNodes.length > 0) {
         // Get the first node with 'busy' text
-        const busynessNode = busynessNodes[0];
+        const busynessNode = busynessNodes[1];
         if (busynessNode && 'textContent' in busynessNode) {
           busynessLevel = busynessNode.textContent || '';
         }
       }
       
       // Determine crowd level from text
-      if (busynessLevel.includes('busy')) {
-        crowdLevel = 'busy';
-      } else if (busynessLevel.toLowerCase().includes('not busy') || busynessLevel.toLowerCase().includes('not too busy')) {
+      if (busynessLevel.toLowerCase().includes('not busy') || busynessLevel.toLowerCase().includes('not too busy')) {
         crowdLevel = 'not_busy';
       } else if (busynessLevel.toLowerCase().includes('usually')) {
         crowdLevel = 'moderate';
+      } else if (busynessLevel.includes('busy')) {
+        crowdLevel = 'busy';
       }
       
       // If we couldn't determine from text, try to estimate from attributes

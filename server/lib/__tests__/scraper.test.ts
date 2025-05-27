@@ -258,6 +258,14 @@ function createMockResponse(options: {
   });
 
   describe('extractCrowdDataFromPage',  () => {
+    beforeAll(() => {
+      jest.spyOn(Date, 'now').mockImplementation(() => 1620000000000); // fixed timestamp
+    });
+
+    afterAll(() => {
+      jest.restoreAllMocks(); // restore original Date.now
+    });
+    
     test('get crowd data from example html', async () => {
       const html = readFileSync(join(__dirname, './../../../example_scrape_data.html'), 'utf-8');
       const exampleHTML = new JSDOM(html);
@@ -265,7 +273,7 @@ function createMockResponse(options: {
       const result = await scraper.extractCrowdDataFromPage(exampleHTML);
       expect(result).toEqual({
         "averageTimeSpent": "People typically spend up to 3 hours here",
-        "crowdLevel": "busy",
+        "crowdLevel": "not_busy",
         "restaurantName": undefined,
         "lastUpdated": expect.any(Date),
          "source": "google",
