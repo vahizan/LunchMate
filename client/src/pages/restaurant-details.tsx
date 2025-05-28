@@ -102,7 +102,7 @@ export default function RestaurantDetails() {
             </div>
             <div className="flex items-center text-gray-600">
               <Clock className="w-4 h-4 mr-1" />
-              <span>{restaurant.open_now ? 'Open now' : 'Closed'}</span>
+              <span>{restaurant?.opening_hours?.open_now ? 'Open now' : 'Closed'}</span>
             </div>
             <div className="flex items-center text-gray-600">
               <DollarSign className="w-4 h-4 mr-1" />

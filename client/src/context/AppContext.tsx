@@ -3,6 +3,12 @@ import { useToast } from '@/hooks/use-toast';
 import { Restaurant, Location, Filters, UserPreferences, VisitHistoryItem } from '@/types';
 
 // Default values
+// Helper function to get current time in HH:MM format
+const getCurrentTimeString = (): string => {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+};
+
 const DEFAULT_FILTERS: Filters = {
   radius: [0.5],
   cuisines: [],
@@ -10,14 +16,10 @@ const DEFAULT_FILTERS: Filters = {
   priceLevel: 2,
   historyDays: 14,
   excludeChains: false,
-  excludeCafe: false
+  excludeCafe: false,
+  departureTime: getCurrentTimeString()
 };
 
-const DEFAULT_LOCATION: Location = {
-  address: "",
-  lat: 0,
-  lng: 0
-};
 
 const defaultAppContext=  
   {
@@ -30,7 +32,7 @@ const defaultAppContext=
   addToHistory: () => {},
   removeFromHistory: () => {},
   clearVisitHistory: () => {},
-  location: DEFAULT_LOCATION,
+  location: undefined,
   setLocation: () => {},
   filters: DEFAULT_FILTERS,
   setFilters: () => {},
@@ -91,7 +93,7 @@ AppContext.displayName = 'AppContext';
   
   // Restaurants and search
   // Initialize with DEFAULT_LOCATION instead of undefined
-  const [location, setLocation] = useState<Location>(DEFAULT_LOCATION);
+  const [location, setLocation] = useState<Location|undefined>();
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   
@@ -140,8 +142,6 @@ AppContext.displayName = 'AppContext';
         try {
           const parsedLocation = JSON.parse(savedLocation);
           
-         
-          
           // Ensure lat and lng are numbers
           const validatedLocation = {
             ...parsedLocation,
@@ -153,8 +153,6 @@ AppContext.displayName = 'AppContext';
           setLocation(validatedLocation);
         } catch (error) {
           console.error("Error parsing location from localStorage:", error);
-          // Fall back to default location on error
-          setLocation(DEFAULT_LOCATION);
         }
       }
     } catch (error) {

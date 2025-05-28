@@ -68,7 +68,8 @@ export function useRestaurants(props?: { limit?: string }) {
         priceLevel: filters.priceLevel,
         historyDays: filters.historyDays,
         excludeChains: filters.excludeChains,
-        excludeCafe: filters.excludeCafe
+        excludeCafe: filters.excludeCafe,
+        departureTime: filters.departureTime
       } : null
     });
   }, [location, filters]);
@@ -132,6 +133,11 @@ export function useRestaurants(props?: { limit?: string }) {
     // Add exclude cafe filter if set
     if (baseFilters.excludeCafe) {
       params.append('excludeCafe', baseFilters.excludeCafe.toString());
+    }
+    
+    // Add departure time if set
+    if (baseFilters.departureTime) {
+      params.append('departureTime', baseFilters.departureTime);
     }
     
     // Add cursor if provided
@@ -333,6 +339,39 @@ export function useRestaurants(props?: { limit?: string }) {
       }
       
       const restaurant = await detailsResponse.json();
+      
+      // Fetch crowd level data if restaurant has a name
+      if (restaurant.name) {
+        try {
+          console.log(`Fetching crowd level data for restaurant: ${restaurant.name}`);
+          
+          // Create location string for the API call if location is available
+          const params = new URLSearchParams({
+            address: restaurant.formatted_address,
+            restaurantName: restaurant.name
+          });
+
+          console.log("RESTAURANT", restaurant);
+
+          
+          const crowdResponse = await fetch(`/api/restaurants/${randomId}/crowd-level?${params.toString()}`);
+          
+          if (crowdResponse.ok) {
+            const crowdData = await crowdResponse.json();
+            if (crowdData.success && crowdData.data) {
+              // Merge crowd data with restaurant data
+              restaurant.crowd_level = crowdData.data.crowdLevel;
+              restaurant.average_time_spent = crowdData.data.averageTimeSpent;
+              restaurant.peak_hours = crowdData.data.peakHours;
+              console.log(`Successfully fetched crowd level data: ${crowdData.data.crowdLevel}`);
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching crowd level data:", error);
+          // Continue with the restaurant data we have, even if crowd data fetch fails
+        }
+      }
+      
       setHighlightedRestaurant(restaurant);
       
       // Update previous location and filters

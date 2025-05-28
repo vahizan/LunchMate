@@ -9,6 +9,23 @@ interface Location {
   lng: number;
 }
 
+// Type for travel information
+interface TravelInfo {
+  travel_time: number; // in minutes
+  travel_distance: number; // in kilometers
+  estimated_arrival_time: string; // ISO string
+}
+
+// Type for crowd information
+interface CrowdInfo {
+  crowd_level: 'busy' | 'moderate' | 'not_busy';
+  peak_hours: Array<{
+    day: string;
+    hour: number;
+    level: 'busy' | 'moderate' | 'not_busy';
+  }>;
+}
+
 // Type for filter options
 interface FilterOptions {
   cuisines?: string[];
@@ -142,7 +159,7 @@ export async function fetchRestaurants(
 // Fetch details for a specific restaurant
 export async function fetchRestaurantDetails(placeId: string): Promise<any> {
   try {
-    const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,place_id,formatted_address,formatted_phone_number,geometry,opening_hours,photos,price_level,rating,reviews,types,user_ratings_total,website,vicinity&key=${apiKey}`;
+    const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,place_id,formatted_address,formatted_phone_number,geometry,opening_hours,photos,price_level,rating,reviews,types,user_ratings_total,website,vicinity,current_popularity,popular_times&key=${apiKey}`;
     
     const response = await fetch(url);
     const data = await response.json();
@@ -152,9 +169,113 @@ export async function fetchRestaurantDetails(placeId: string): Promise<any> {
       throw new Error(`Google Places API error: ${data.status}`);
     }
     
-    return data.result;
+    // Fetch crowd information for this restaurant
+    let crowdInfo = null;
+    try {
+      crowdInfo = await fetchCrowdInformation(placeId);
+    } catch (crowdError) {
+      console.warn(`Could not fetch crowd information for ${placeId}:`, crowdError);
+    }
+    
+    // Merge crowd information with restaurant details
+    const result = {
+      ...data.result,
+      ...(crowdInfo && {
+        crowd_level: crowdInfo.crowd_level,
+        peak_hours: crowdInfo.peak_hours
+      })
+    };
+    
+    return result;
   } catch (error) {
     console.error('Error fetching restaurant details:', error);
     throw error;
+  }
+}
+
+/**
+ * Calculate travel information between origin and destination using Google Maps Distance Matrix API
+ * @param origin Origin location (user's location)
+ * @param destination Destination location (restaurant location)
+ * @param departureTime Optional departure time as ISO string
+ * @returns Travel information including time, distance, and estimated arrival time
+ */
+export async function calculateTravelInfo(
+  origin: Location,
+  destination: Location,
+  departureTime?: string
+): Promise<TravelInfo | null> {
+  try {
+    // Format locations for the API
+    const originStr = `${origin.lat},${origin.lng}`;
+    const destinationStr = `${destination.lat},${destination.lng}`;
+    
+    // Build the URL for Distance Matrix API
+    let url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${originStr}&destinations=${destinationStr}&key=${apiKey}`;
+    
+    // Add departure time if provided
+    if (departureTime) {
+      // Parse the HH:MM time string
+      const [hours, minutes] = departureTime.split(':').map(Number);
+      
+      // Create a date object for today with the specified time
+      const departureDate = new Date();
+      departureDate.setHours(hours, minutes, 0, 0);
+      
+      // Convert to Unix timestamp (seconds since epoch)
+      const departureTimestamp = Math.floor(departureDate.getTime() / 1000);
+      
+      url += `&departure_time=${departureTimestamp}`;
+      url += '&traffic_model=best_guess';
+    }
+    
+    // Make the request
+    console.log('Fetching travel info from Google Distance Matrix API:', url);
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    if (data.status !== 'OK') {
+      console.error('Google Distance Matrix API error:', data.status, data.error_message);
+      return null;
+    }
+    
+    // Extract travel information from response
+    const element = data.rows[0].elements[0];
+    
+    if (element.status !== 'OK') {
+      console.error('No route found between origin and destination');
+      return null;
+    }
+    
+    // Calculate travel time in minutes
+    const travelTimeSeconds = departureTime
+      ? element.duration_in_traffic.value
+      : element.duration.value;
+    const travelTimeMinutes = Math.ceil(travelTimeSeconds / 60);
+    
+    // Calculate travel distance in kilometers
+    const travelDistanceMeters = element.distance.value;
+    const travelDistanceKm = travelDistanceMeters / 1000;
+    
+    // Calculate estimated arrival time
+    let now;
+    if (departureTime) {
+      // Use the same parsed hours and minutes from earlier
+      const [hours, minutes] = departureTime.split(':').map(Number);
+      now = new Date();
+      now.setHours(hours, minutes, 0, 0);
+    } else {
+      now = new Date();
+    }
+    const arrivalTime = new Date(now.getTime() + (travelTimeSeconds * 1000));
+    
+    return {
+      travel_time: travelTimeMinutes,
+      travel_distance: parseFloat(travelDistanceKm.toFixed(1)),
+      estimated_arrival_time: arrivalTime.toISOString()
+    };
+  } catch (error) {
+    console.error('Error calculating travel info:', error);
+    return null;
   }
 }

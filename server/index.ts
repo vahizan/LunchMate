@@ -1,6 +1,12 @@
-import express, { type Request, Response, NextFunction } from "express";
+import express, { Request, Response, NextFunction } from "express";
+import { log, serveStatic, setupVite } from "./vite";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import { scrapingConfig } from "./config/scraper-config";
+import { ScraperService } from "./lib/scraper";
+import dotenv from "dotenv";
+
+// Load environment variables
+dotenv.config();
 
 const app = express();
 app.use(express.json());
@@ -36,7 +42,17 @@ app.use((req, res, next) => {
   next();
 });
 
+
+
+
 (async () => {
+  // Initialize the ScraperService singleton with credentials from .env
+
+  ScraperService.getInstance({
+  oxyLabsUsername: 'lunchmate_BbFPS',
+  oxyLabsPassword: process.env.SCRAPE_OXYLABS_PASS
+});
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -67,4 +83,25 @@ app.use((req, res, next) => {
   }, () => {
     log(`serving on port ${port}`);
   });
+
+  // Handle graceful shutdown
+  const gracefulShutdown = async () => {
+    console.log("Shutting down server...");
+    
+    // Close the server
+    server.close(() => {
+      console.log("Server closed");
+      process.exit(0);
+    });
+    
+    // Force exit after timeout
+    setTimeout(() => {
+      console.error("Forced shutdown after timeout");
+      process.exit(1);
+    }, 10000);
+  };
+
+  // Listen for termination signals
+  process.on('SIGTERM', gracefulShutdown);
+  process.on('SIGINT', gracefulShutdown);
 })();

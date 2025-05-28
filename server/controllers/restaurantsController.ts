@@ -1,6 +1,11 @@
 import { Request, Response } from "express";
 import { z } from "zod";
-import { fetchRestaurants as fetchGoogleRestaurants, fetchRestaurantDetails as fetchGoogleRestaurantDetails } from "../lib/maps";
+import {
+  fetchRestaurants as fetchGoogleRestaurants,
+  fetchRestaurantDetails as fetchGoogleRestaurantDetails,
+  calculateTravelInfo,
+} from "../lib/maps";
+import { ScraperService } from "../lib/scraper";
 import {
   fetchRestaurants as fetchFoursquareRestaurants,
   fetchRestaurantDetails as fetchFoursquareRestaurantDetails,
@@ -16,6 +21,7 @@ const querySchema = z.object({
   excludeChains: z.boolean().optional(),
   excludeCafe: z.boolean().optional(),
   cursor: z.string().optional(),
+  departureTime: z.string().optional(),
 });
 
 
@@ -128,6 +134,7 @@ export async function getRestaurants(req: Request, res: Response) {
       excludeChains: Boolean(req.query.excludeChains),
       excludeCafe: Boolean(req.query.excludeCafe),
       cursor: req.query.cursor ? req.query.cursor : undefined,
+      departureTime: req.query.departureTime ? req.query.departureTime.toString() : undefined,
     };
 
     const location = locationSchema.parse(queryParams);
@@ -155,6 +162,48 @@ export async function getRestaurants(req: Request, res: Response) {
         )
     );
     
+    // Process restaurants to add additional information
+    // Process restaurants in parallel with Promise.all
+    const enhancedResults = await Promise.all(
+      restaurants.results.map(async (restaurant) => {
+        let enhancedRestaurant = { ...restaurant };
+        
+        // Skip if restaurant doesn't have location data
+        if (!restaurant.geometry?.location) {
+          return enhancedRestaurant;
+        }
+        
+        // Calculate travel info if departure time is provided
+        if (validatedFilters.departureTime) {
+          console.log(`Calculating travel info with departure time: ${validatedFilters.departureTime}`);
+          
+          const travelInfo = await calculateTravelInfo(
+            { lat: location.lat, lng: location.lng },
+            {
+              lat: restaurant.geometry.location.lat,
+              lng: restaurant.geometry.location.lng
+            },
+            validatedFilters.departureTime
+          );
+          
+          // Add travel info to restaurant if available
+          if (travelInfo) {
+            enhancedRestaurant = {
+              ...enhancedRestaurant,
+              travel_time: travelInfo.travel_time,
+              travel_distance: travelInfo.travel_distance,
+              estimated_arrival_time: travelInfo.estimated_arrival_time
+            };
+          }
+        }
+        
+        return enhancedRestaurant;
+      })
+    );
+    
+    // Replace original results with enhanced results
+    restaurants.results = enhancedResults;
+    
     res.json({
       results: restaurants?.results,
       cursor: restaurants?.cursor,
@@ -180,6 +229,9 @@ export async function getRestaurantById(req: Request, res: Response) {
       location = locationSchema.parse(req.query) as Location;
     }
 
+    // Get departure time if provided
+    const departureTime = req.query.departureTime ? req.query.departureTime.toString() : undefined;
+
     // Determine which API to use based on environment variable
     const useGoogleMaps = process.env.PLACES_PROVIDER === 'google';
     
@@ -190,6 +242,27 @@ export async function getRestaurantById(req: Request, res: Response) {
     
     if (!restaurant) {
       return res.status(404).json({ error: "Restaurant not found" });
+    }
+
+    // Enhance restaurant with additional information
+    
+    // Calculate travel info if both location and departure time are provided
+    if (location && departureTime && restaurant.geometry?.location) {
+      const travelInfo = await calculateTravelInfo(
+        { lat: location.lat, lng: location.lng },
+        {
+          lat: restaurant.geometry.location.lat,
+          lng: restaurant.geometry.location.lng
+        },
+        departureTime
+      );
+      
+      // Add travel info to restaurant if available
+      if (travelInfo) {
+        restaurant.travel_time = travelInfo.travel_time;
+        restaurant.travel_distance = travelInfo.travel_distance;
+        restaurant.estimated_arrival_time = travelInfo.estimated_arrival_time;
+      }
     }
 
     res.json(restaurant);
@@ -229,10 +302,35 @@ export async function getRestaurantImages(req: Request, res: Response) {
   }
 }
 
+// Get crowd level data for a restaurant
+export async function getCrowdLevelData(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ error: "Restaurant ID is required" });
+    }
+
+
+    // Call the scraper service to extract crowd level data
+    console.log(`Extracting crowd level data for restaurant: ${req.query.restaurantName}`);
+    const crowdData = await ScraperService.getInstance().extractCrowdLevelData(req.query.restaurantName?.toString() || "", req.query.address?.toString() || "");
+    
+    res.json(crowdData);
+  } catch (error) {
+    console.error("Error fetching crowd level data:", error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to fetch crowd level data"
+    });
+  }
+}
+
 // Register restaurant routes
 export function registerRestaurantRoutes(app: any) {
   app.get("/api/restaurants", getRestaurants);
   app.get("/api/restaurants/ids", getRestaurantIds);
   app.get("/api/restaurants/:id", getRestaurantById);
   app.get("/api/restaurants/:id/images", getRestaurantImages);
+  app.get("/api/restaurants/:id/crowd-level", getCrowdLevelData);
 }

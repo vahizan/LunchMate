@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { PlacesFactory } from '@/services/places/places-factory';
 import { PlacesProvider, PlacesProviderType, PlaceResult } from '@/services/places/types';
+import { useAppContext } from '@/context/AppContext';
 
 /**
  * Hook to access the places provider
@@ -10,6 +11,7 @@ export function usePlaces() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [providerType, setProviderType] = useState<PlacesProviderType>('foursquare');
+  const {location} = useAppContext();
   
   // Get the provider instance
   const getProvider = useCallback((): PlacesProvider => {
@@ -72,7 +74,7 @@ export function usePlaces() {
     location: { lat: number, lng: number }
   ) => {
     return getProvider().showMap(container, location);
-  }, [getProvider]);
+  }, [getProvider, location]);
   
   const geocodeAddress = useCallback(async (
     address: string

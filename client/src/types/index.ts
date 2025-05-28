@@ -14,6 +14,7 @@ export interface Filters {
   historyDays: number;
   excludeChains: boolean;
   excludeCafe: boolean;
+  departureTime: string;
 }
 
 // Restaurant type - based on Google Places API with some additions
@@ -67,6 +68,20 @@ export interface Restaurant {
       reservations?: boolean;
     };
   };
+  
+  // Travel information
+  travel_time?: number; // in minutes
+  travel_distance?: number; // in kilometers
+  estimated_arrival_time?: string; // ISO string
+  
+  // Crowd information
+  crowd_level?: 'busy' | 'moderate' | 'not_busy';
+  peak_hours?: Array<{
+    day: string; // e.g., 'Monday', 'Tuesday', etc.
+    hour: number; // 0-23
+    level: 'busy' | 'moderate' | 'not_busy';
+  }>;
+  average_time_spent?: string;
   
   // Custom additions
   votes?: number;

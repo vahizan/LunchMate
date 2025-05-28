@@ -90,6 +90,7 @@ export async function fetchRestaurants(
     
     // Normalize fields input
     const fieldsArray = normalizeFieldsInput(fieldsToFetch);
+    console.log("FIELDS TO FETCH", fieldsToFetch);
     
     // Handle special case for 'fsq_id' only
     if (fieldsArray.length === 1 && fieldsArray[0] === 'fsq_id') {
@@ -112,7 +113,6 @@ export async function fetchRestaurants(
     // For normal case, map fields and build request
     const fsqFieldsString = mapToFoursquareFields(fieldsArray);
     const params = buildRequestParams(location, radius, filters, fsqFieldsString, buildCategoriesString, limit, cursor);
-    
     
     // Make the request
     const data = await makeApiRequest(`${baseUrl}?${params.toString()}`, apiKey, fetch);
@@ -205,7 +205,7 @@ export async function fetchRestaurantDetails(placeId: string, location?:Location
       types,
       photos,
       opening_hours: place.hours ? {
-        open_now: place.hours?.is_open_now || false,
+        open_now: place.hours?.open_now || false,
         weekday_text: place.hours?.display || []
       } : undefined,
       geometry: {
@@ -219,7 +219,6 @@ export async function fetchRestaurantDetails(placeId: string, location?:Location
       website: place.website,
       menu: place.menu,
       description: place.description,
-      open_now: place.hours?.is_open_now || false
     };
   } catch (error) {
     console.error('Error fetching restaurant details from Foursquare:', error);

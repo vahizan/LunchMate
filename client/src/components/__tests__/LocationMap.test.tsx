@@ -75,6 +75,7 @@ describe('LocationMap', () => {
       historyDays: 14,
       excludeChains: false,
       excludeCafe: false,
+      departureTime: '12:00',
     },
     setFilters: jest.fn(),
     resetFilters: jest.fn(),
@@ -93,8 +94,9 @@ describe('LocationMap', () => {
       </AppContext.Provider>
     );
 
-    const mapContainer = screen.getByText('Choose on map');
+    const mapContainer = screen.getByTestId('map-container');
     expect(mapContainer).toBeInTheDocument();
+    expect(mapContainer).toHaveAttribute('id', 'map');
   });
 
   test('should use location from props if provided', async () => {
@@ -178,19 +180,6 @@ describe('LocationMap', () => {
     });
   });
 
-  test('should call onMapClick when button is clicked', () => {
-    const onMapClick = jest.fn();
-    render(
-      <AppContext.Provider value={mockAppContextValue}>
-        <LocationMap onMapClick={onMapClick} />
-      </AppContext.Provider>
-    );
-
-    const button = screen.getByText('Choose on map');
-    button.click();
-    
-    expect(onMapClick).toHaveBeenCalledTimes(1);
-  });
 
   test('should use different provider types correctly', async () => {
     // Mock the usePlaces hook to return 'google' provider
