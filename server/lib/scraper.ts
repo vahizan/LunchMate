@@ -9,7 +9,7 @@ config();
 // Constants
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
 const DEFAULT_RETRY_ATTEMPTS = 3;
-const DEFAULT_RETRY_DELAY = 2000; // 2 seconds
+const DEFAULT_RETRY_DELAY = 1000; // 2 seconds
 
 // Interfaces
 export interface ScraperConfig {
@@ -141,7 +141,8 @@ export class ScraperService {
    */
   public async extractCrowdLevelData(
     restaurantName: string,
-    location?: string
+    location?: string,
+    retryLimit?: number,
   ): Promise<ScrapingResult> {
     console.log(`Extracting crowd level data for restaurant: ${restaurantName}${location ? ` in ${location}` : ''}`);
     
@@ -194,7 +195,7 @@ export class ScraperService {
           console.error('Error in Oxylabs API request:', error);
           throw error;
         }
-      });
+      }, retryLimit);
       
       return {
         success: true,
@@ -407,7 +408,7 @@ export async function fetchCrowdLevelData(
   }
   
   try {
-    const result = await scraper.extractCrowdLevelData(restaurantName, location);
+    const result = await scraper.extractCrowdLevelData(restaurantName, location, config?.retryAttempts);
     
     return result;
   } catch (error) {

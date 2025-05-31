@@ -11,6 +11,7 @@ import { TeamModal } from "./components/TeamModal";
 import { ProfileModal } from "./components/ProfileModal";
 import EnvDebugger from "./components/EnvDebugger";
 import AppProvider from "./context/AppContext";
+import { RestaurantProvider } from "./context/RestaurantContext";
 
 function App() {
   const [teamModalOpen, setTeamModalOpen] = useState(false);
@@ -18,6 +19,7 @@ function App() {
 
   return (
     <AppProvider>
+    <RestaurantProvider>
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen flex flex-col">
         {/* Environment Variables Debugger */}
@@ -89,6 +91,7 @@ function App() {
     
       <Toaster />
     </QueryClientProvider>
+    </RestaurantProvider>
     </AppProvider>
   );
 }

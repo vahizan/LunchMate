@@ -1,12 +1,12 @@
-import { useContext } from "react";
 import { useLocation } from "wouter";
 import { Restaurant } from "@/types";
-import { AppContext } from "@/context/AppContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Heart, Phone, Globe, MapPin, Clock, Info, Menu, Car, Users, Timer } from "lucide-react";
+import { Heart, Phone, Globe, MapPin, Clock, Info, Menu, Car, Users, Timer, Bike, Footprints } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { useFavorites } from "@/hooks/use-favorites";
+import { useRestaurantContext } from "@/context/RestaurantContext";
 
 interface RestaurantCardProps {
   restaurant: Restaurant;
@@ -15,9 +15,10 @@ interface RestaurantCardProps {
 
 export default function RestaurantCard({ restaurant, highlight }: RestaurantCardProps) {
   const [_, navigate] = useLocation();
-  const { toggleFavorite, isFavorite } = useContext(AppContext);
+  const { addToFavorites, removeFromFavorites, isInFavorites } = useFavorites();
+  const { setSelectedRestaurant } = useRestaurantContext();
   
-  const isFavorited = isFavorite(restaurant.place_id);
+  const isFavorited = isInFavorites(restaurant.place_id || restaurant.fsq_id || '');
   const priceLevel = "$".repeat(restaurant.price_level || 1);
   
   const photoUrl = restaurant?.photos?.length && restaurant?.photos[0].large;
@@ -42,15 +43,39 @@ export default function RestaurantCard({ restaurant, highlight }: RestaurantCard
               {restaurant.types?.slice(0, 2).join(', ')} • {restaurant.distance?.toFixed(1)} km
             </p>
             {restaurant.travel_time && (
-              <p className="text-blue-600 text-sm flex items-center mt-1">
-                <Car className="h-3 w-3 mr-1" />
-                {restaurant.travel_time} min away
-                {restaurant.estimated_arrival_time && (
-                  <span className="ml-1">
-                    • arrive {format(new Date(restaurant.estimated_arrival_time), 'h:mm a')}
-                  </span>
+              <div className="text-sm flex flex-col gap-1 mt-1">
+                <p className="text-blue-600 flex items-center">
+                  <Car className="h-3 w-3 mr-1" />
+                  {restaurant.travel_time} min by car
+                  {restaurant.estimated_arrival_time && (
+                    <span className="ml-1">
+                      • arrive {format(new Date(restaurant.estimated_arrival_time), 'h:mm a')}
+                    </span>
+                  )}
+                </p>
+                {restaurant.cycling_time && (
+                  <p className="text-green-600 flex items-center">
+                    <Bike className="h-3 w-3 mr-1" />
+                    {restaurant.cycling_time} min by bike
+                    {restaurant.cycling_arrival_time && (
+                      <span className="ml-1">
+                        • arrive {format(new Date(restaurant.cycling_arrival_time), 'h:mm a')}
+                      </span>
+                    )}
+                  </p>
                 )}
-              </p>
+                {restaurant.walking_time && (
+                  <p className="text-amber-600 flex items-center">
+                    <Footprints className="h-3 w-3 mr-1" />
+                    {restaurant.walking_time} min on foot
+                    {restaurant.walking_arrival_time && (
+                      <span className="ml-1">
+                        • arrive {format(new Date(restaurant.walking_arrival_time), 'h:mm a')}
+                      </span>
+                    )}
+                  </p>
+                )}
+              </div>
             )}
           </div>
           <div className="flex flex-col items-end gap-1">
@@ -235,34 +260,70 @@ export default function RestaurantCard({ restaurant, highlight }: RestaurantCard
         )}
 
         {/* Average Time Spent */}
-        {restaurant.average_time_spent && restaurant.average_time_spent !== 'unknown' && (
+        {(restaurant.averageTimeSpent || restaurant.average_time_spent) &&
+         ((restaurant.averageTimeSpent && restaurant.averageTimeSpent !== 'unknown') ||
+          (restaurant.average_time_spent && restaurant.average_time_spent !== 'unknown')) && (
           <div className="mt-3 flex items-center text-sm">
             <Timer className="h-4 w-4 mr-1 text-gray-500" />
             <span className="text-gray-700">
-              {restaurant.average_time_spent}
+              {restaurant.averageTimeSpent || restaurant.average_time_spent}
             </span>
           </div>
         )}
 
         {/* Travel Information */}
         {restaurant.travel_distance && (
-          <div className="mt-3 flex items-center text-sm">
-            <Car className="h-4 w-4 mr-1 text-gray-500" />
-            <span className="text-gray-700">
-              {restaurant.travel_distance} km • {restaurant.travel_time} min
-              {restaurant.estimated_arrival_time && (
-                <span className="ml-1">
-                  • Arrive at {format(new Date(restaurant.estimated_arrival_time), 'h:mm a')}
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center text-sm">
+              <Car className="h-4 w-4 mr-1 text-gray-500" />
+              <span className="text-gray-700">
+                {restaurant.travel_distance} km • {restaurant.travel_time} min by car
+                {restaurant.estimated_arrival_time && (
+                  <span className="ml-1">
+                    • Arrive at {format(new Date(restaurant.estimated_arrival_time), 'h:mm a')}
+                  </span>
+                )}
+              </span>
+            </div>
+            
+            {restaurant.cycling_time && (
+              <div className="flex items-center text-sm">
+                <Bike className="h-4 w-4 mr-1 text-gray-500" />
+                <span className="text-gray-700">
+                  {restaurant.cycling_time} min by bike
+                  {restaurant.cycling_arrival_time && (
+                    <span className="ml-1">
+                      • Arrive at {format(new Date(restaurant.cycling_arrival_time), 'h:mm a')}
+                    </span>
+                  )}
                 </span>
-              )}
-            </span>
+              </div>
+            )}
+            
+            {restaurant.walking_time && (
+              <div className="flex items-center text-sm">
+                <Walking className="h-4 w-4 mr-1 text-gray-500" />
+                <span className="text-gray-700">
+                  {restaurant.walking_time} min on foot
+                  {restaurant.walking_arrival_time && (
+                    <span className="ml-1">
+                      • Arrive at {format(new Date(restaurant.walking_arrival_time), 'h:mm a')}
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
           </div>
         )}
 
         <div className="flex mt-4 space-x-2">
           <Button
             className="flex-1"
-            onClick={() => navigate(`/restaurant/${restaurant.place_id}`)}
+            onClick={() => {
+              // Set the selected restaurant in context before navigating
+              setSelectedRestaurant(restaurant);
+              navigate(`/restaurant/${restaurant.place_id}`);
+            }}
           >
             View Details
           </Button>
@@ -273,7 +334,7 @@ export default function RestaurantCard({ restaurant, highlight }: RestaurantCard
               "w-10 h-10",
               isFavorited && "text-primary border-primary hover:text-primary"
             )}
-            onClick={() => toggleFavorite(restaurant)}
+            onClick={() => isFavorited ? removeFromFavorites(restaurant.place_id || restaurant.fsq_id || '') : addToFavorites(restaurant)}
           >
             <Heart className={cn("h-5 w-5", isFavorited && "fill-current")} />
           </Button>

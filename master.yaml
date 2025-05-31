@@ -1,0 +1,543 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'LunchMate Application - Master CloudFormation Template'
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Environment Configuration"
+        Parameters:
+          - EnvironmentName
+          - AWSRegion
+      - Label:
+          default: "Network Configuration"
+        Parameters:
+          - VpcCIDR
+          - PublicSubnet1CIDR
+          - PublicSubnet2CIDR
+          - PrivateSubnet1CIDR
+          - PrivateSubnet2CIDR
+      - Label:
+          default: "Frontend Configuration"
+        Parameters:
+          - DomainName
+          - SubDomainPrefix
+          - CreateRoute53Records
+          - HostedZoneId
+      - Label:
+          default: "Backend Configuration"
+        Parameters:
+          - NodeJSVersion
+          - InstanceType
+          - MinInstances
+          - MaxInstances
+          - ScaleUpThreshold
+          - ScaleDownThreshold
+          - SSLCertificateARN
+      - Label:
+          default: "Database Configuration"
+        Parameters:
+          - DBInstanceClass
+          - DBName
+          - DBUsername
+          - DBAllocatedStorage
+          - DBMaxAllocatedStorage
+          - DBBackupRetentionPeriod
+          - DBEngineVersion
+          - EnablePerformanceInsights
+          - EnableEnhancedMonitoring
+          - MonitoringInterval
+    ParameterLabels:
+      EnvironmentName:
+        default: "Environment Name"
+      AWSRegion:
+        default: "AWS Region"
+      VpcCIDR:
+        default: "VPC CIDR Block"
+      PublicSubnet1CIDR:
+        default: "Public Subnet 1 CIDR Block"
+      PublicSubnet2CIDR:
+        default: "Public Subnet 2 CIDR Block"
+      PrivateSubnet1CIDR:
+        default: "Private Subnet 1 CIDR Block"
+      PrivateSubnet2CIDR:
+        default: "Private Subnet 2 CIDR Block"
+      DomainName:
+        default: "Domain Name"
+      SubDomainPrefix:
+        default: "Subdomain Prefix"
+      CreateRoute53Records:
+        default: "Create Route53 Records"
+      HostedZoneId:
+        default: "Route53 Hosted Zone ID"
+      NodeJSVersion:
+        default: "Node.js Version"
+      InstanceType:
+        default: "EC2 Instance Type"
+      MinInstances:
+        default: "Minimum Instances"
+      MaxInstances:
+        default: "Maximum Instances"
+      ScaleUpThreshold:
+        default: "Scale Up Threshold"
+      ScaleDownThreshold:
+        default: "Scale Down Threshold"
+      SSLCertificateARN:
+        default: "SSL Certificate ARN"
+      DBInstanceClass:
+        default: "Database Instance Class"
+      DBName:
+        default: "Database Name"
+      DBUsername:
+        default: "Database Username"
+      DBAllocatedStorage:
+        default: "Database Allocated Storage (GB)"
+      DBMaxAllocatedStorage:
+        default: "Database Max Allocated Storage (GB)"
+      DBBackupRetentionPeriod:
+        default: "Database Backup Retention Period (days)"
+      DBEngineVersion:
+        default: "PostgreSQL Engine Version"
+      EnablePerformanceInsights:
+        default: "Enable Performance Insights"
+      EnableEnhancedMonitoring:
+        default: "Enable Enhanced Monitoring"
+      MonitoringInterval:
+        default: "Monitoring Interval (seconds)"
+      GitHubOwner:
+        default: "GitHub Repository Owner"
+      GitHubRepo:
+        default: "GitHub Repository Name"
+      GitHubBranch:
+        default: "GitHub Branch"
+      GitHubToken:
+        default: "GitHub OAuth Token"
+      NotificationEmail:
+        default: "Notification Email"
+      EnableAutomaticDeployment:
+        default: "Enable Automatic Deployment"
+      CodeBuildComputeType:
+        default: "CodeBuild Compute Type"
+
+Parameters:
+  # Global Parameters
+  EnvironmentName:
+    Description: Environment name (qa or prod)
+    Type: String
+    Default: qa
+    AllowedValues:
+      - qa
+      - prod
+    ConstraintDescription: must be either qa or prod
+
+  AWSRegion:
+    Description: AWS Region where resources will be deployed
+    Type: String
+    Default: us-east-1
+
+  # Networking Parameters
+  VpcCIDR:
+    Description: CIDR block for the VPC
+    Type: String
+    Default: 10.0.0.0/16
+
+  PublicSubnet1CIDR:
+    Description: CIDR block for Public Subnet 1
+    Type: String
+    Default: 10.0.0.0/24
+
+  PublicSubnet2CIDR:
+    Description: CIDR block for Public Subnet 2
+    Type: String
+    Default: 10.0.1.0/24
+
+  PrivateSubnet1CIDR:
+    Description: CIDR block for Private Subnet 1
+    Type: String
+    Default: 10.0.2.0/24
+
+  PrivateSubnet2CIDR:
+    Description: CIDR block for Private Subnet 2
+    Type: String
+    Default: 10.0.3.0/24
+
+  # Frontend Parameters
+  DomainName:
+    Description: Main domain name for the application (e.g., lunchmate.com)
+    Type: String
+    Default: lunchmate.com
+
+  SubDomainPrefix:
+    Description: Subdomain prefix for non-production environments (e.g., qa)
+    Type: String
+    Default: qa
+
+  CreateRoute53Records:
+    Description: Whether to create Route53 records (set to false if domain is managed elsewhere)
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+
+  HostedZoneId:
+    Description: Route53 Hosted Zone ID for the domain
+    Type: String
+
+  # Backend Parameters
+  NodeJSVersion:
+    Description: Node.js version for the Elastic Beanstalk platform
+    Type: String
+    Default: '18.17.0'
+    AllowedValues:
+      - '16.20.0'
+      - '18.17.0'
+      - '20.10.0'
+
+  InstanceType:
+    Description: EC2 instance type for the Elastic Beanstalk environment
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+    ConstraintDescription: must be a valid EC2 instance type
+
+  MinInstances:
+    Description: Minimum number of instances in the Auto Scaling group
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 10
+
+  MaxInstances:
+    Description: Maximum number of instances in the Auto Scaling group
+    Type: Number
+    Default: 3
+    MinValue: 1
+    MaxValue: 10
+
+  ScaleUpThreshold:
+    Description: CPU utilization threshold for scaling up (percentage)
+    Type: Number
+    Default: 70
+    MinValue: 1
+    MaxValue: 100
+
+  ScaleDownThreshold:
+    Description: CPU utilization threshold for scaling down (percentage)
+    Type: Number
+    Default: 30
+    MinValue: 1
+    MaxValue: 100
+
+  SSLCertificateARN:
+    Description: ARN of the SSL certificate for the load balancer
+    Type: String
+    Default: ''
+
+  # Database Parameters
+  DBInstanceClass:
+    Description: Database instance class
+    Type: String
+    Default: db.t3.small
+    AllowedValues:
+      - db.t3.micro
+      - db.t3.small
+      - db.t3.medium
+      - db.t3.large
+    ConstraintDescription: must be a valid RDS instance type
+
+  DBName:
+    Description: Database name
+    Type: String
+    Default: lunchmate
+    MinLength: 1
+    MaxLength: 64
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9_]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters or underscores
+
+  DBUsername:
+    Description: Database admin username
+    Type: String
+    Default: lunchmate_admin
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9_]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters or underscores
+
+  DBAllocatedStorage:
+    Description: The size of the database (GB)
+    Type: Number
+    Default: 20
+    MinValue: 20
+    MaxValue: 1000
+    ConstraintDescription: must be between 20 and 1000 GB
+
+  DBMaxAllocatedStorage:
+    Description: The maximum storage threshold for autoscaling (GB)
+    Type: Number
+    Default: 100
+    MinValue: 20
+    MaxValue: 1000
+    ConstraintDescription: must be between 20 and 1000 GB
+
+  DBBackupRetentionPeriod:
+    Description: The number of days to retain automated backups
+    Type: Number
+    Default: 7
+    MinValue: 1
+    MaxValue: 35
+    ConstraintDescription: must be between 1 and 35 days
+
+  DBEngineVersion:
+    Description: PostgreSQL engine version
+    Type: String
+    Default: '15.4'
+    AllowedValues:
+      - '14.10'
+      - '15.4'
+      - '16.1'
+    ConstraintDescription: must be a supported PostgreSQL version
+
+  EnablePerformanceInsights:
+    Description: Enable Performance Insights
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    ConstraintDescription: must be either true or false
+
+  EnableEnhancedMonitoring:
+    Description: Enable Enhanced Monitoring
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    ConstraintDescription: must be either true or false
+
+  MonitoringInterval:
+    Description: Enhanced Monitoring interval in seconds (0 to disable)
+    Type: Number
+    Default: 120
+    AllowedValues:
+      - 0
+      - 1
+      - 5
+      - 10
+      - 15
+      - 30
+      - 60
+      - 120
+    ConstraintDescription: must be one of the allowed values
+
+  # CI/CD Parameters
+  GitHubOwner:
+    Description: GitHub repository owner
+    Type: String
+    Default: lunchmate
+
+  GitHubRepo:
+    Description: GitHub repository name
+    Type: String
+    Default: lunchmate-app
+
+  GitHubBranch:
+    Description: GitHub branch to monitor for changes
+    Type: String
+    Default: main
+
+  GitHubToken:
+    Description: GitHub OAuth token for repository access (stored in Secrets Manager)
+    Type: String
+    NoEcho: true
+
+  NotificationEmail:
+    Description: Email address to receive pipeline notifications
+    Type: String
+    Default: admin@lunchmate.com
+
+  EnableAutomaticDeployment:
+    Description: Enable automatic deployment to production (if false, requires manual approval)
+    Type: String
+    Default: false
+    AllowedValues:
+      - true
+      - false
+
+  CodeBuildComputeType:
+    Description: CodeBuild compute type
+    Type: String
+    Default: BUILD_GENERAL1_SMALL
+    AllowedValues:
+      - BUILD_GENERAL1_SMALL
+      - BUILD_GENERAL1_MEDIUM
+      - BUILD_GENERAL1_LARGE
+
+Mappings:
+  EnvironmentMap:
+    qa:
+      MultiAZ: false
+      DeletionProtection: false
+      BackupRetention: 7
+      LogRetention: 7
+      PerformanceInsights: true
+      EnhancedMonitoring: true
+    prod:
+      MultiAZ: true
+      DeletionProtection: true
+      BackupRetention: 30
+      LogRetention: 90
+      PerformanceInsights: true
+      EnhancedMonitoring: true
+
+Resources:
+  # Secrets Manager for Database Credentials and Environment Variables
+  SecretsManagerSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: !Sub "Environment variables for ${EnvironmentName} LunchMate application"
+      GenerateSecretString:
+        SecretStringTemplate: '{}'
+        GenerateStringKey: "PLACEHOLDER"
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-lunchmate-env-vars"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # Networking Stack
+  NetworkingStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/networking.yaml"
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        VpcCIDR: !Ref VpcCIDR
+        PublicSubnet1CIDR: !Ref PublicSubnet1CIDR
+        PublicSubnet2CIDR: !Ref PublicSubnet2CIDR
+        PrivateSubnet1CIDR: !Ref PrivateSubnet1CIDR
+        PrivateSubnet2CIDR: !Ref PrivateSubnet2CIDR
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-lunchmate-networking-stack"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # Database Stack
+  DatabaseStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: NetworkingStack
+    Properties:
+      TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/database.yaml"
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        DBInstanceClass: !Ref DBInstanceClass
+        DBName: !Ref DBName
+        DBUsername: !Ref DBUsername
+        DBAllocatedStorage: !Ref DBAllocatedStorage
+        DBMaxAllocatedStorage: !Ref DBMaxAllocatedStorage
+        DBBackupRetentionPeriod: !Ref DBBackupRetentionPeriod
+        DBEngineVersion: !Ref DBEngineVersion
+        EnablePerformanceInsights: !Ref EnablePerformanceInsights
+        EnableEnhancedMonitoring: !Ref EnableEnhancedMonitoring
+        MonitoringInterval: !Ref MonitoringInterval
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-lunchmate-database-stack"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # Backend Stack
+  BackendStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: 
+      - NetworkingStack
+      - DatabaseStack
+    Properties:
+      TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/backend.yaml"
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        ApplicationName: LunchMate
+        EnvironmentNamePrefix: lunchmate
+        NodeJSVersion: !Ref NodeJSVersion
+        InstanceType: !Ref InstanceType
+        MinInstances: !Ref MinInstances
+        MaxInstances: !Ref MaxInstances
+        ScaleUpThreshold: !Ref ScaleUpThreshold
+        ScaleDownThreshold: !Ref ScaleDownThreshold
+        SecretsManagerARN: !Ref SecretsManagerSecret
+        SSLCertificateARN: !Ref SSLCertificateARN
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-lunchmate-backend-stack"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # Frontend Stack
+  FrontendStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: NetworkingStack
+    Properties:
+      TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/frontend.yaml"
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        DomainName: !Ref DomainName
+        SubDomainPrefix: !Ref SubDomainPrefix
+        CreateRoute53Records: !Ref CreateRoute53Records
+        HostedZoneId: !Ref HostedZoneId
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-lunchmate-frontend-stack"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+Outputs:
+  # VPC Outputs
+  VPC:
+    Description: VPC ID
+    Value: !GetAtt NetworkingStack.Outputs.VPC
+
+  PublicSubnets:
+    Description: List of Public Subnet IDs
+    Value: !GetAtt NetworkingStack.Outputs.PublicSubnets
+
+  PrivateSubnets:
+    Description: List of Private Subnet IDs
+    Value: !GetAtt NetworkingStack.Outputs.PrivateSubnets
+
+  # Database Outputs
+  DBEndpointAddress:
+    Description: Database endpoint address
+    Value: !GetAtt DatabaseStack.Outputs.DBEndpointAddress
+
+  DBConnectionSecretARN:
+    Description: ARN of the secret containing the database connection information
+    Value: !GetAtt DatabaseStack.Outputs.DBConnectionSecretARN
+
+  # Backend Outputs
+  ElasticBeanstalkEnvironmentURL:
+    Description: URL of the Elastic Beanstalk environment
+    Value: !GetAtt BackendStack.Outputs.ElasticBeanstalkEnvironmentURL
+
+  # Frontend Outputs
+  WebsiteURL:
+    Description: URL of the website
+    Value: !GetAtt FrontendStack.Outputs.WebsiteURL
+
+  CloudFrontDistributionId:
+    Description: ID of the CloudFront distribution
+    Value: !GetAtt FrontendStack.Outputs.CloudFrontDistributionId

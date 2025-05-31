@@ -6,17 +6,32 @@ import { Restaurant } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
-  MapPin, Star, Clock, DollarSign, Phone, Globe, ArrowLeft, Menu
+  MapPin, Star, Clock, DollarSign, Phone, Globe, ArrowLeft, Menu, Users, Timer, Heart
 } from "lucide-react";
+import { useFavorites } from "@/hooks/use-favorites";
+import { useRestaurantContext } from "@/context/RestaurantContext";
 
 export default function RestaurantDetails() {
   const { id } = useParams();
   const [_, navigate] = useLocation();
   const { addToHistory } = useContext(AppContext);
+  const {
+    addToFavorites,
+    removeFromFavorites,
+    isInFavorites
+  } = useFavorites();
+  
+  // Get restaurant data from context if available
+  const { selectedRestaurant } = useRestaurantContext();
 
-  const { data: restaurant, isLoading } = useQuery<Restaurant>({
+  // Only fetch from API if we don't have data in context
+  const { data: fetchedRestaurant, isLoading } = useQuery<Restaurant>({
     queryKey: [`/api/restaurants/${id}`],
+    enabled: !selectedRestaurant, // Only run the query if we don't have data in context
   });
+
+  // Use context data if available, otherwise use fetched data
+  const restaurant = selectedRestaurant || fetchedRestaurant;
 
   // When visiting a restaurant detail page, add it to history
   useEffect(() => {
@@ -45,10 +60,10 @@ export default function RestaurantDetails() {
           <CardContent className="pt-6">
             <p>Restaurant not found</p>
             <Button 
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/results')}
               className="mt-4"
             >
-              <ArrowLeft className="mr-2 h-4 w-4" /> Go back
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back to results
             </Button>
           </CardContent>
         </Card>
@@ -60,10 +75,10 @@ export default function RestaurantDetails() {
 
   return (
     <div className="container mx-auto px-4 py-8 pb-20 md:pb-8">
-      <Button 
-        variant="outline" 
+      <Button
+        variant="outline"
         className="mb-4"
-        onClick={() => navigate('/')}
+        onClick={() => navigate('/results')}
       >
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to results
       </Button>
@@ -112,6 +127,16 @@ export default function RestaurantDetails() {
               <div className="flex items-center text-gray-600">
                 <Star className="w-4 h-4 mr-1" />
                 <span>{restaurant.user_ratings_total} reviews</span>
+              </div>
+            )}
+            {restaurant.crowd_level && (
+              <div className={`flex items-center text-white rounded px-2 py-1 text-sm ${
+                restaurant.crowd_level === 'busy' ? 'bg-red-500' :
+                restaurant.crowd_level === 'moderate' ? 'bg-yellow-500' : 'bg-green-500'
+              }`}>
+                <Users className="h-3 w-3 mr-1" />
+                {restaurant.crowd_level === 'busy' ? 'Busy' :
+                 restaurant.crowd_level === 'moderate' ? 'Moderate' : 'Not Busy'}
               </div>
             )}
           </div>
@@ -171,14 +196,45 @@ export default function RestaurantDetails() {
               </p>
             </div>
           )}
-
-          <div className="mt-8 flex">
-            <Button 
-              className="w-full"
+  
+          {/* Average Time Spent */}
+          {(restaurant.averageTimeSpent || restaurant.average_time_spent) &&
+           ((restaurant.averageTimeSpent && restaurant.averageTimeSpent !== 'unknown') ||
+            (restaurant.average_time_spent && restaurant.average_time_spent !== 'unknown')) && (
+            <div className="mt-6">
+              <h2 className="text-lg font-semibold mb-2">Average Visit Duration</h2>
+              <p className="flex items-center text-gray-600">
+                <Timer className="w-4 h-4 mr-2" />
+                {restaurant.averageTimeSpent || restaurant.average_time_spent}
+              </p>
+            </div>
+          )}
+  
+          <div className="mt-8 flex gap-2">
+            <Button
+              className="flex-1"
               onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${restaurant.name}&destination_place_id=${restaurant.place_id}`, '_blank')}
             >
               <MapPin className="mr-2 h-4 w-4" /> Get Directions
             </Button>
+            
+            {isInFavorites(restaurant.place_id || restaurant.fsq_id || '') ? (
+              <Button
+                variant="outline"
+                className="flex-none"
+                onClick={() => removeFromFavorites(restaurant.place_id || restaurant.fsq_id || '')}
+              >
+                <Heart className="h-4 w-4 fill-current text-red-500" />
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                className="flex-none"
+                onClick={() => addToFavorites(restaurant)}
+              >
+                <Heart className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       </div>

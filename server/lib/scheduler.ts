@@ -1,6 +1,7 @@
 import { config } from 'dotenv';
 import cron from 'node-cron';
 import { ScraperService, CrowdLevelData, ScrapingResult } from './scraper';
+import { storage } from '../storage';
 
 // Load environment variables
 config();
@@ -68,6 +69,9 @@ export interface SchedulerConfig {
   // Popular restaurants update frequency (in cron format)
   popularRestaurantsInterval: string;
   
+  // Crowd data update frequency (in cron format)
+  crowdDataUpdateInterval: string;
+  
   // Retry settings
   maxRetries: number;
   retryDelayBase: number; // Base delay in ms for exponential backoff
@@ -85,7 +89,6 @@ export interface SchedulerConfig {
 export class Scheduler {
   private config: SchedulerConfig;
   private scraperService: ScraperService;
-  private proxyManager: ProxyManager;
   
   // Job queues by priority
   private highPriorityQueue: ScrapingJob[] = [];
@@ -121,6 +124,7 @@ export class Scheduler {
       mediumPriorityInterval: process.env.SCHEDULER_MEDIUM_PRIORITY_INTERVAL || '*/15 * * * *', // Every 15 minutes
       lowPriorityInterval: process.env.SCHEDULER_LOW_PRIORITY_INTERVAL || '0 */1 * * *', // Every hour
       popularRestaurantsInterval: process.env.SCHEDULER_POPULAR_RESTAURANTS_INTERVAL || '0 */2 * * *', // Every 2 hours
+      crowdDataUpdateInterval: process.env.SCHEDULER_CROWD_DATA_UPDATE_INTERVAL || '0 */4 * * *', // Every 4 hours
       maxRetries: parseInt(process.env.SCHEDULER_MAX_RETRIES || '3', 10),
       retryDelayBase: parseInt(process.env.SCHEDULER_RETRY_DELAY_BASE || '5000', 10), // 5 seconds
       batchSize: parseInt(process.env.SCHEDULER_BATCH_SIZE || '5', 10),
@@ -137,6 +141,7 @@ export class Scheduler {
       mediumPriorityInterval: this.config.mediumPriorityInterval,
       lowPriorityInterval: this.config.lowPriorityInterval,
       popularRestaurantsInterval: this.config.popularRestaurantsInterval,
+      crowdDataUpdateInterval: this.config.crowdDataUpdateInterval,
       maxRetries: this.config.maxRetries,
       batchSize: this.config.batchSize
     });
@@ -159,6 +164,11 @@ export class Scheduler {
     
     this.cronJobs.set('lowPriority', cron.schedule(this.config.lowPriorityInterval, () => {
       this.processQueue(ScrapingPriority.LOW);
+    }));
+    
+    // Schedule crowd data updates
+    this.cronJobs.set('crowdDataUpdate', cron.schedule(this.config.crowdDataUpdateInterval, () => {
+      this.updateCrowdDataCache();
     }));
     
     console.log('Scheduler started');
@@ -564,6 +574,86 @@ export class Scheduler {
   public clearJobHistory(): void {
     this.jobHistory = [];
     console.log('Job history cleared');
+  }
+  
+  /**
+   * Update crowd data cache for all stored restaurants
+   * This method fetches fresh crowd data for all restaurants in the crowd data cache
+   * that haven't been updated in the last 24 hours
+   */
+  public async updateCrowdDataCache(): Promise<void> {
+    console.log('Starting scheduled crowd data cache update');
+    
+    try {
+      // Get all crowd data entries
+      const allCrowdData = await storage.getAllCrowdData();
+      
+      if (allCrowdData.length === 0) {
+        console.log('No crowd data entries to update');
+        return;
+      }
+      
+      console.log(`Found ${allCrowdData.length} crowd data entries`);
+      
+      // Filter entries that need updating (older than 24 hours)
+      const now = new Date();
+      const entriesToUpdate = allCrowdData.filter(entry => {
+        const lastUpdated = new Date(entry.lastUpdated);
+        const hoursSinceUpdate = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60);
+        return hoursSinceUpdate >= 24;
+      });
+      
+      if (entriesToUpdate.length === 0) {
+        console.log('No crowd data entries need updating');
+        return;
+      }
+      
+      console.log(`Updating ${entriesToUpdate.length} crowd data entries`);
+      
+      // Process in batches to avoid overwhelming the scraper
+      const batchSize = this.config.batchSize;
+      for (let i = 0; i < entriesToUpdate.length; i += batchSize) {
+        const batch = entriesToUpdate.slice(i, i + batchSize);
+        
+        // Process batch in parallel
+        await Promise.all(batch.map(async entry => {
+          try {
+            console.log(`Updating crowd data for ${entry.restaurantName} (${entry.restaurantId})`);
+            
+            const result = await ScraperService.getInstance().extractCrowdLevelData(
+              entry.restaurantName,
+              '' // No address needed as we already have the restaurant name
+            );
+            
+            if (result.success && result.data) {
+              // Update the entry
+              await storage.updateCrowdData(entry.restaurantId, {
+                crowdLevel: result.data.crowdLevel,
+                crowdPercentage: result.data.crowdPercentage,
+                peakHours: result.data.peakHours,
+                averageTimeSpent: result.data.averageTimeSpent || entry.averageTimeSpent,
+                source: result.data.source
+              });
+              
+              console.log(`Successfully updated crowd data for ${entry.restaurantName}`);
+            } else {
+              console.log(`Failed to update crowd data for ${entry.restaurantName}: ${result.error || 'Unknown error'}`);
+            }
+          } catch (error) {
+            console.error(`Error updating crowd data for ${entry.restaurantName}:`, error);
+          }
+        }));
+        
+        // Add a small delay between batches to avoid rate limiting
+        if (i + batchSize < entriesToUpdate.length) {
+          await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+      }
+      
+      console.log('Crowd data cache update completed');
+    } catch (error) {
+      console.error('Error updating crowd data cache:', error);
+    }
   }
 }
 

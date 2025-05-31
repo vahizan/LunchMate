@@ -1,0 +1,534 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'LunchMate Application - Backend Infrastructure (Nested Stack)'
+
+Parameters:
+  EnvironmentName:
+    Description: Environment name (qa or prod)
+    Type: String
+    Default: qa
+    AllowedValues:
+      - qa
+      - prod
+    ConstraintDescription: must be either qa or prod
+
+  ApplicationName:
+    Description: Name of the Elastic Beanstalk application
+    Type: String
+    Default: LunchMate
+
+  EnvironmentNamePrefix:
+    Description: Prefix for the Elastic Beanstalk environment name
+    Type: String
+    Default: lunchmate
+
+  NodeJSVersion:
+    Description: Node.js version for the Elastic Beanstalk platform
+    Type: String
+    Default: '18.17.0'
+    AllowedValues:
+      - '16.20.0'
+      - '18.17.0'
+      - '20.10.0'
+
+  InstanceType:
+    Description: EC2 instance type for the Elastic Beanstalk environment
+    Type: String
+    Default: t3.small
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+    ConstraintDescription: must be a valid EC2 instance type
+
+  MinInstances:
+    Description: Minimum number of instances in the Auto Scaling group
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 10
+
+  MaxInstances:
+    Description: Maximum number of instances in the Auto Scaling group
+    Type: Number
+    Default: 4
+    MinValue: 1
+    MaxValue: 10
+
+  ScaleUpThreshold:
+    Description: CPU utilization threshold for scaling up (percentage)
+    Type: Number
+    Default: 75
+    MinValue: 1
+    MaxValue: 100
+
+  ScaleDownThreshold:
+    Description: CPU utilization threshold for scaling down (percentage)
+    Type: Number
+    Default: 40
+    MinValue: 1
+    MaxValue: 100
+
+  SecretsManagerARN:
+    Description: ARN of the Secrets Manager secret containing environment variables
+    Type: String
+
+  SSLCertificateARN:
+    Description: ARN of the SSL certificate for the load balancer
+    Type: String
+    Default: ''
+
+Conditions:
+  IsProduction: !Equals [!Ref EnvironmentName, 'prod']
+  HasSSLCertificate: !Not [!Equals [!Ref SSLCertificateARN, '']]
+
+Resources:
+  # IAM Role for Elastic Beanstalk Service
+  ServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: elasticbeanstalk.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkService'
+        - 'arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkEnhancedHealth'
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-eb-service-role
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # IAM Role for EC2 Instances
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+        - 'arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy'
+        - 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-eb-ec2-role
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # IAM Policy for Secrets Manager Access
+  SecretsManagerPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub ${EnvironmentName}-lunchmate-secrets-manager-policy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'secretsmanager:GetSecretValue'
+              - 'secretsmanager:DescribeSecret'
+            Resource: !Ref SecretsManagerARN
+      Roles:
+        - !Ref EC2Role
+
+  # IAM Instance Profile for EC2 Instances
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2Role
+
+  # Elastic Beanstalk Application
+  ElasticBeanstalkApplication:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      ApplicationName: !Sub ${EnvironmentNamePrefix}-${EnvironmentName}
+      Description: !Sub "LunchMate ${EnvironmentName} Backend Application"
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-application
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # Elastic Beanstalk Environment
+  ElasticBeanstalkEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties:
+      ApplicationName: !Ref ElasticBeanstalkApplication
+      EnvironmentName: !Sub ${EnvironmentNamePrefix}-${EnvironmentName}
+      Description: !Sub "LunchMate ${EnvironmentName} Backend Environment"
+      SolutionStackName: !Sub "64bit Amazon Linux 2023 v6.0.2 running Node.js ${NodeJSVersion}"
+      Tier:
+        Name: WebServer
+        Type: Standard
+      VersionLabel: !Ref ApplicationVersionResource
+      OptionSettings:
+        # VPC Configuration
+        - Namespace: aws:ec2:vpc
+          OptionName: VPCId
+          Value: 
+            Fn::ImportValue: !Sub ${EnvironmentName}-LunchMate-VPC
+        - Namespace: aws:ec2:vpc
+          OptionName: Subnets
+          Value: 
+            Fn::ImportValue: !Sub ${EnvironmentName}-LunchMate-PrivateSubnets
+        - Namespace: aws:ec2:vpc
+          OptionName: ELBSubnets
+          Value: 
+            Fn::ImportValue: !Sub ${EnvironmentName}-LunchMate-PublicSubnets
+        - Namespace: aws:ec2:vpc
+          OptionName: AssociatePublicIpAddress
+          Value: false
+
+        # Load Balancer Configuration
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: LoadBalancerType
+          Value: application
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: ServiceRole
+          Value: !Ref ServiceRole
+        - Namespace: aws:elbv2:loadbalancer
+          OptionName: SecurityGroups
+          Value: 
+            Fn::ImportValue: !Sub ${EnvironmentName}-LunchMate-ALBSecurityGroup
+        - Namespace: aws:elbv2:loadbalancer
+          OptionName: ManagedSecurityGroup
+          Value: 
+            Fn::ImportValue: !Sub ${EnvironmentName}-LunchMate-ALBSecurityGroup
+        - Namespace: aws:elbv2:listener:default
+          OptionName: Protocol
+          Value: HTTP
+        - Namespace: aws:elbv2:listener:443
+          OptionName: Protocol
+          Value: HTTPS
+          Fn::If:
+            - HasSSLCertificate
+            - !Ref AWS::NoValue
+        - Namespace: aws:elbv2:listener:443
+          OptionName: SSLCertificateArns
+          Value: !Ref SSLCertificateARN
+          Fn::If:
+            - HasSSLCertificate
+            - !Ref AWS::NoValue
+        - Namespace: aws:elbv2:listener:443
+          OptionName: DefaultProcess
+          Value: default
+          Fn::If:
+            - HasSSLCertificate
+            - !Ref AWS::NoValue
+
+        # Instance Configuration
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: IamInstanceProfile
+          Value: !Ref InstanceProfile
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: SecurityGroups
+          Value: 
+            Fn::ImportValue: !Sub ${EnvironmentName}-LunchMate-EC2SecurityGroup
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: InstanceType
+          Value: !Ref InstanceType
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: DisableIMDSv1
+          Value: true
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: EC2KeyName
+          Value: !If [IsProduction, 'lunchmate-prod-key', 'lunchmate-qa-key']
+
+        # Auto Scaling Configuration
+        - Namespace: aws:autoscaling:asg
+          OptionName: MinSize
+          Value: !Ref MinInstances
+        - Namespace: aws:autoscaling:asg
+          OptionName: MaxSize
+          Value: !Ref MaxInstances
+        - Namespace: aws:autoscaling:trigger
+          OptionName: MeasureName
+          Value: CPUUtilization
+        - Namespace: aws:autoscaling:trigger
+          OptionName: Statistic
+          Value: Average
+        - Namespace: aws:autoscaling:trigger
+          OptionName: Unit
+          Value: Percent
+        - Namespace: aws:autoscaling:trigger
+          OptionName: Period
+          Value: 5
+        - Namespace: aws:autoscaling:trigger
+          OptionName: BreachDuration
+          Value: 2
+        - Namespace: aws:autoscaling:trigger
+          OptionName: UpperThreshold
+          Value: !Ref ScaleUpThreshold
+        - Namespace: aws:autoscaling:trigger
+          OptionName: UpperBreachScaleIncrement
+          Value: 1
+        - Namespace: aws:autoscaling:trigger
+          OptionName: LowerThreshold
+          Value: !Ref ScaleDownThreshold
+        - Namespace: aws:autoscaling:trigger
+          OptionName: LowerBreachScaleIncrement
+          Value: -1
+
+        # Application Environment
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: NODE_ENV
+          Value: !If [IsProduction, 'production', 'development']
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: SECRETS_MANAGER_ARN
+          Value: !Ref SecretsManagerARN
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: AWS_REGION
+          Value: !Ref AWS::Region
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: ENVIRONMENT
+          Value: !Ref EnvironmentName
+
+        # Enhanced Health Reporting
+        - Namespace: aws:elasticbeanstalk:healthreporting:system
+          OptionName: SystemType
+          Value: enhanced
+        - Namespace: aws:elasticbeanstalk:healthreporting:system
+          OptionName: HealthCheckSuccessThreshold
+          Value: Ok
+
+        # Deployment Policy
+        - Namespace: aws:elasticbeanstalk:command
+          OptionName: DeploymentPolicy
+          Value: Rolling
+        - Namespace: aws:elasticbeanstalk:command
+          OptionName: BatchSizeType
+          Value: Percentage
+        - Namespace: aws:elasticbeanstalk:command
+          OptionName: BatchSize
+          Value: 25
+
+        # Logs
+        - Namespace: aws:elasticbeanstalk:cloudwatch:logs
+          OptionName: StreamLogs
+          Value: true
+        - Namespace: aws:elasticbeanstalk:cloudwatch:logs
+          OptionName: DeleteOnTerminate
+          Value: !If [IsProduction, false, true]
+        - Namespace: aws:elasticbeanstalk:cloudwatch:logs
+          OptionName: RetentionInDays
+          Value: !If [IsProduction, 90, 7]
+
+        # Node.js Platform Options
+        - Namespace: aws:elasticbeanstalk:container:nodejs
+          OptionName: NodeVersion
+          Value: !Ref NodeJSVersion
+        - Namespace: aws:elasticbeanstalk:container:nodejs
+          OptionName: ProxyServer
+          Value: nginx
+
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-environment
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # Sample Application Version
+  ApplicationVersionResource:
+    Type: AWS::ElasticBeanstalk::ApplicationVersion
+    Properties:
+      ApplicationName: !Ref ElasticBeanstalkApplication
+      Description: Initial version
+      SourceBundle:
+        S3Bucket: !Sub "elasticbeanstalk-samples-${AWS::Region}"
+        S3Key: nodejs-sample.zip
+
+  # CloudWatch Alarms
+  HighCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: !Sub "Alarm if CPU exceeds ${ScaleUpThreshold}% for 5 minutes"
+      Namespace: AWS/EC2
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Sub "${ElasticBeanstalkEnvironment}-AWSEBAutoScalingGroup"
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: !Ref ScaleUpThreshold
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref HighCPUTopic
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-high-cpu-alarm
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # SNS Topic for High CPU Alarm
+  HighCPUTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub "${EnvironmentName}-LunchMate-HighCPU"
+      TopicName: !Sub "${EnvironmentName}-LunchMate-HighCPU"
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-high-cpu-topic
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # 5XX Error Rate Alarm
+  High5xxErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm if 5XX error rate exceeds 5% for 5 minutes
+      Namespace: AWS/ApplicationELB
+      MetricName: HTTPCode_Target_5XX_Count
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !Sub "${ElasticBeanstalkEnvironment}-AWSEB"
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref ErrorRateTopic
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-5xx-error-alarm
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # SNS Topic for Error Rate Alarm
+  ErrorRateTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub "${EnvironmentName}-LunchMate-ErrorRate"
+      TopicName: !Sub "${EnvironmentName}-LunchMate-ErrorRate"
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-error-rate-topic
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # Environment Health Alarm
+  EnvironmentHealthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Alarm if environment health is degraded for 15 minutes
+      Namespace: AWS/ElasticBeanstalk
+      MetricName: EnvironmentHealth
+      Dimensions:
+        - Name: EnvironmentName
+          Value: !Ref ElasticBeanstalkEnvironment
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 20
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref HealthTopic
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-health-alarm
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # SNS Topic for Health Alarm
+  HealthTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub "${EnvironmentName}-LunchMate-Health"
+      TopicName: !Sub "${EnvironmentName}-LunchMate-Health"
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-health-topic
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+Outputs:
+  ElasticBeanstalkApplicationName:
+    Description: Name of the Elastic Beanstalk application
+    Value: !Ref ElasticBeanstalkApplication
+    Export:
+      Name: !Sub "${EnvironmentName}-LunchMate-EBApplicationName"
+
+  ElasticBeanstalkEnvironmentName:
+    Description: Name of the Elastic Beanstalk environment
+    Value: !Ref ElasticBeanstalkEnvironment
+    Export:
+      Name: !Sub "${EnvironmentName}-LunchMate-EBEnvironmentName"
+
+  ElasticBeanstalkEnvironmentId:
+    Description: ID of the Elastic Beanstalk environment
+    Value: !Ref ElasticBeanstalkEnvironment
+    Export:
+      Name: !Sub "${EnvironmentName}-LunchMate-EBEnvironmentId"
+
+  ElasticBeanstalkEnvironmentURL:
+    Description: URL of the Elastic Beanstalk environment
+    Value: !GetAtt ElasticBeanstalkEnvironment.EndpointURL
+    Export:
+      Name: !Sub "${EnvironmentName}-LunchMate-EBEnvironmentURL"
+
+  ServiceRoleARN:
+    Description: ARN of the Elastic Beanstalk service role
+    Value: !GetAtt ServiceRole.Arn
+    Export:
+      Name: !Sub "${EnvironmentName}-LunchMate-EBServiceRoleARN"
+
+  EC2RoleARN:
+    Description: ARN of the EC2 instance role
+    Value: !GetAtt EC2Role.Arn
+    Export:
+      Name: !Sub "${EnvironmentName}-LunchMate-EBInstanceRoleARN"
+
+  InstanceProfileARN:
+    Description: ARN of the EC2 instance profile
+    Value: !GetAtt InstanceProfile.Arn
+    Export:
+      Name: !Sub "${EnvironmentName}-LunchMate-EBInstanceProfileARN"
+
+  HighCPUTopicARN:
+    Description: ARN of the SNS topic for high CPU alarms
+    Value: !Ref HighCPUTopic
+    Export:
+      Name: !Sub "${EnvironmentName}-LunchMate-HighCPUTopicARN"
+
+  ErrorRateTopicARN:
+    Description: ARN of the SNS topic for error rate alarms
+    Value: !Ref ErrorRateTopic
+    Export:
+      Name: !Sub "${EnvironmentName}-LunchMate-ErrorRateTopicARN"
+
+  HealthTopicARN:
+    Description: ARN of the SNS topic for environment health alarms
+    Value: !Ref HealthTopic
+    Export:
+      Name: !Sub "${EnvironmentName}-LunchMate-HealthTopicARN"

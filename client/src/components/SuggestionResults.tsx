@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useAppContext } from "@/context/AppContext";
+import { useRestaurantContext } from "@/context/RestaurantContext";
 import { Button } from "@/components/ui/button";
 import RestaurantCard from "./RestaurantCard";
 import { useRestaurants } from "@/hooks/use-restaurants";
@@ -25,6 +26,7 @@ const SkeletonCard = () => (
 export default function SuggestionResults() {
   const [_, navigate] = useLocation();
   const { location, filters, setTeamModalOpen } = useAppContext();
+  const { restaurantResults } = useRestaurantContext();
   const {
     data: restaurants,
     isLoading,
@@ -46,9 +48,12 @@ export default function SuggestionResults() {
   useEffect(() => {
     if (location?.lat !== undefined && location?.lng !== undefined) {
       console.log("SuggestionResults - triggering fetch on mount");
-      refetch();
+      // Only refetch if we don't have results in context
+      if (restaurantResults.length === 0) {
+        refetch();
+      }
     }
-  }, []);
+  }, [location, restaurantResults.length, refetch]);
 
 
   
