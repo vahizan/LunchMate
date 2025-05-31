@@ -111,16 +111,6 @@ jobs:
           deployment_package: eb-bundle.zip
           wait_for_environment_recovery: 300
 
-      - name: Notify deployment
-        uses: slackapi/slack-github-action@v1
-        with:
-          payload: |
-            {
-              "text": "Backend deployment to QA completed successfully."
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        if: ${{ success() && secrets.SLACK_WEBHOOK_URL != '' }}
 
   approve-prod-deployment:
     name: Approve Production Deployment
@@ -163,14 +153,3 @@ jobs:
           region: ${{ secrets.AWS_REGION }}
           deployment_package: eb-bundle.zip
           wait_for_environment_recovery: 300
-
-      - name: Notify deployment
-        uses: slackapi/slack-github-action@v1
-        with:
-          payload: |
-            {
-              "text": "Backend deployment to Production completed successfully."
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        if: ${{ success() && secrets.SLACK_WEBHOOK_URL != '' }}

@@ -98,17 +98,6 @@ jobs:
         run: |
           aws cloudfront create-invalidation --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"
 
-      - name: Notify deployment
-        uses: slackapi/slack-github-action@v1
-        with:
-          payload: |
-            {
-              "text": "Frontend deployment to QA completed successfully."
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        if: ${{ success() && secrets.SLACK_WEBHOOK_URL != '' }}
-
   approve-prod-deployment:
     name: Approve Production Deployment
     needs: build
@@ -146,14 +135,3 @@ jobs:
       - name: Invalidate CloudFront
         run: |
           aws cloudfront create-invalidation --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"
-
-      - name: Notify deployment
-        uses: slackapi/slack-github-action@v1
-        with:
-          payload: |
-            {
-              "text": "Frontend deployment to Production completed successfully."
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        if: ${{ success() && secrets.SLACK_WEBHOOK_URL != '' }}
