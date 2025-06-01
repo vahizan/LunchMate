@@ -20,6 +20,7 @@ export interface Filters {
 // Restaurant type - based on Google Places API with some additions
 export interface Restaurant {
   place_id: string;
+  fsq_id?: string; // Foursquare ID
   name: string;
   formatted_address?: string;
   vicinity?: string;
@@ -70,9 +71,13 @@ export interface Restaurant {
   };
   
   // Travel information
-  travel_time?: number; // in minutes
+  travel_time?: number; // in minutes (by car)
   travel_distance?: number; // in kilometers
   estimated_arrival_time?: string; // ISO string
+  walking_time?: number; // in minutes
+  cycling_time?: number; // in minutes
+  walking_arrival_time?: string; // ISO string
+  cycling_arrival_time?: string; // ISO string
   
   // Crowd information
   crowd_level?: 'busy' | 'moderate' | 'not_busy';
@@ -82,6 +87,7 @@ export interface Restaurant {
     level: 'busy' | 'moderate' | 'not_busy';
   }>;
   average_time_spent?: string;
+  averageTimeSpent?: string;
   
   // Custom additions
   votes?: number;

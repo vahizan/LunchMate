@@ -9,6 +9,7 @@ import { registerFavoritesRoutes } from "./controllers/favoritesController";
 import { registerTeamRoutes } from "./controllers/teamsController";
 import { registerTeamSuggestionsRoutes } from "./controllers/teamSuggestionsController";
 import { registerTeamVotesRoutes } from "./controllers/teamVotesController";
+import { registerCrowdDataRoutes } from "./controllers/crowdDataController";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   console.log("Registering all API routes...");
@@ -21,6 +22,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerTeamRoutes(app);
   registerTeamSuggestionsRoutes(app);
   registerTeamVotesRoutes(app);
+  registerCrowdDataRoutes(app);
   
   console.log("All API routes registered successfully");
 

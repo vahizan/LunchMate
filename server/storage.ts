@@ -5,7 +5,8 @@ import {
   Team, InsertTeam,
   TeamMember, InsertTeamMember,
   TeamSuggestion, InsertTeamSuggestion,
-  TeamVote, InsertTeamVote
+  TeamVote, InsertTeamVote,
+  CrowdData, InsertCrowdData
 } from "@shared/schema";
 
 export interface IStorage {
@@ -42,6 +43,12 @@ export interface IStorage {
   // Team votes methods
   getTeamVotes(suggestionId: number): Promise<TeamVote[]>;
   addTeamVote(vote: InsertTeamVote): Promise<TeamVote>;
+  
+  // Crowd data methods
+  getCrowdData(restaurantId: string): Promise<CrowdData | undefined>;
+  getAllCrowdData(): Promise<CrowdData[]>;
+  saveCrowdData(data: InsertCrowdData): Promise<CrowdData>;
+  updateCrowdData(restaurantId: string, data: Partial<InsertCrowdData>): Promise<CrowdData | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -52,6 +59,7 @@ export class MemStorage implements IStorage {
   private teamMembers: Map<number, TeamMember>;
   private teamSuggestions: Map<number, TeamSuggestion>;
   private teamVotes: Map<number, TeamVote>;
+  private crowdDataMap: Map<string, CrowdData>;
   
   private currentUserId: number;
   private currentHistoryId: number;
@@ -60,6 +68,7 @@ export class MemStorage implements IStorage {
   private currentTeamMemberId: number;
   private currentTeamSuggestionId: number;
   private currentTeamVoteId: number;
+  private currentCrowdDataId: number;
 
   constructor() {
     this.users = new Map();
@@ -69,6 +78,7 @@ export class MemStorage implements IStorage {
     this.teamMembers = new Map();
     this.teamSuggestions = new Map();
     this.teamVotes = new Map();
+    this.crowdDataMap = new Map();
     
     this.currentUserId = 1;
     this.currentHistoryId = 1;
@@ -77,6 +87,7 @@ export class MemStorage implements IStorage {
     this.currentTeamMemberId = 1;
     this.currentTeamSuggestionId = 1;
     this.currentTeamVoteId = 1;
+    this.currentCrowdDataId = 1;
   }
 
   // User methods
@@ -291,6 +302,54 @@ export class MemStorage implements IStorage {
     
     this.teamVotes.set(id, teamVote);
     return teamVote;
+  }
+  
+  // Crowd data methods
+  async getCrowdData(restaurantId: string): Promise<CrowdData | undefined> {
+    return Array.from(this.crowdDataMap.values()).find(
+      (data) => data.restaurantId === restaurantId
+    );
+  }
+  
+  async getAllCrowdData(): Promise<CrowdData[]> {
+    return Array.from(this.crowdDataMap.values());
+  }
+  
+  async saveCrowdData(data: InsertCrowdData): Promise<CrowdData> {
+    const id = this.currentCrowdDataId++;
+    const now = new Date();
+    
+    const crowdDataEntry: CrowdData = {
+      id,
+      restaurantId: data.restaurantId,
+      restaurantName: data.restaurantName,
+      crowdLevel: data.crowdLevel,
+      crowdPercentage: data.crowdPercentage,
+      peakHours: data.peakHours,
+      averageTimeSpent: data.averageTimeSpent,
+      lastUpdated: now,
+      source: data.source || "google",
+    };
+    
+    this.crowdDataMap.set(data.restaurantId, crowdDataEntry);
+    return crowdDataEntry;
+  }
+  
+  async updateCrowdData(restaurantId: string, data: Partial<InsertCrowdData>): Promise<CrowdData | undefined> {
+    const existingData = await this.getCrowdData(restaurantId);
+    
+    if (!existingData) {
+      return undefined;
+    }
+    
+    const updatedData: CrowdData = {
+      ...existingData,
+      ...data,
+      lastUpdated: new Date(),
+    };
+    
+    this.crowdDataMap.set(restaurantId, updatedData);
+    return updatedData;
   }
 }
 

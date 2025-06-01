@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAppContext } from '@/context/AppContext';
+import { useRestaurantContext } from '@/context/RestaurantContext';
 import { Restaurant } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { areFiltersEqual, areLocationsEqual } from '@/lib/utils';
@@ -27,6 +28,14 @@ export function useRestaurants(props?: { limit?: string }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { location, filters, visitHistory } = useAppContext();
+  const {
+    restaurantResults,
+    setRestaurantResults,
+    lastFetchTimestamp,
+    setLastFetchTimestamp,
+    clearResults
+  } = useRestaurantContext();
+  
   const [highlightedRestaurant, setHighlightedRestaurant] = useState<Restaurant | null>(null);
   const [isFetchData, setIsFetchData] = useState<boolean>(false);
   const [hasMore, setHasMore] = useState<boolean>(false);
@@ -73,15 +82,24 @@ export function useRestaurants(props?: { limit?: string }) {
       } : null
     });
   }, [location, filters]);
-  
+
   // Reset state when location or filters change
   useEffect(() => {
     if (hasFiltersOrLocationChanged) {
       setAllRestaurants([]);
       setCurrentCursor(undefined);
       setRestaurantIds([]);
+      clearResults(); // Clear the stored results in context when filters change
     }
-  }, [hasFiltersOrLocationChanged]);
+  }, [hasFiltersOrLocationChanged, clearResults]);
+  
+  // Initialize allRestaurants from context if available
+  useEffect(() => {
+    if (restaurantResults.length > 0 && allRestaurants.length === 0 && !hasFiltersOrLocationChanged) {
+      setAllRestaurants(restaurantResults);
+      setHasMore(false); // Assume we've loaded all results from storage
+    }
+  }, [restaurantResults, allRestaurants.length, hasFiltersOrLocationChanged]);
   
   // Build URL parameters based on location and filters
   const buildUrlParams = useCallback((
@@ -176,7 +194,14 @@ export function useRestaurants(props?: { limit?: string }) {
         
         setCurrentCursor(data.cursor);
         setHasMore(Boolean(data.cursor));
-        setAllRestaurants(prev => [...prev, ...data.results]);
+        
+        // Update local state
+        const updatedResults = [...allRestaurants, ...data.results];
+        setAllRestaurants(updatedResults);
+        
+        // Update context state
+        setRestaurantResults(updatedResults);
+        setLastFetchTimestamp(Date.now());
         
         return data;
       } catch (error) {
@@ -187,7 +212,7 @@ export function useRestaurants(props?: { limit?: string }) {
         setLoadMore(false);
       }
     },
-    enabled: isFetchData || hasFiltersOrLocationChanged || loadMore,
+    enabled: isFetchData || hasFiltersOrLocationChanged || loadMore || allRestaurants.length === 0,
   });
 
   
@@ -254,12 +279,13 @@ export function useRestaurants(props?: { limit?: string }) {
   }, [location, filters, buildUrlParams]);
 
   // Pick random restaurant
-  const pickRandomRestaurant = useCallback(async () => {
+  const pickRandomRestaurant = async () => {
     try {
       console.log("Picking random restaurant");
       setIsRandomPickLoading(true);
       
       // If there's a previously selected restaurant, add it to skipped IDs
+
       if (lastSelectedId) {
         setSkippedIds(prev => {
           const newSkipped = new Set(prev);
@@ -293,7 +319,6 @@ export function useRestaurants(props?: { limit?: string }) {
       
       // Filter out skipped IDs from the available options
       const availableIds = currentIds.filter(id => !skippedIds.has(id.fsq_id));
-      
       let randomId: string;
       
       // Check if we have any IDs left after filtering
@@ -326,8 +351,6 @@ export function useRestaurants(props?: { limit?: string }) {
       const restaurantByIdParams = buildUrlParams(
         location,
         filters,
-        undefined,
-        {}
       );
       
       // Fetch full details for the selected restaurant
@@ -390,17 +413,7 @@ export function useRestaurants(props?: { limit?: string }) {
     } finally {
       setIsRandomPickLoading(false);
     }
-  }, [
-    location,
-    filters,
-    lastSelectedId,
-    restaurantIds,
-    skippedIds,
-    hasFiltersOrLocationChanged,
-    fetchRestaurantIds,
-    buildUrlParams,
-    toast
-  ]);
+  };
 
   // Add restaurant to team suggestion
   const addToTeamMutation = useMutation({
@@ -431,9 +444,18 @@ export function useRestaurants(props?: { limit?: string }) {
 
   // Force refetch when navigating to results page
   const triggerFetch = useCallback(() => {
+    // If we have results in context and filters haven't changed, use those
+    if (restaurantResults.length > 0 && !hasFiltersOrLocationChanged) {
+      console.log("Using stored restaurant results from context");
+      setAllRestaurants(restaurantResults);
+      return;
+    }
+    
+    // Otherwise, trigger a new fetch
+    console.log("Triggering new fetch for restaurant results");
     setPrevLocationFilters({ location, filters });
     setIsFetchData(true);
-  }, [location, filters]);
+  }, [location, filters, restaurantResults, hasFiltersOrLocationChanged]);
 
   // Load more data handler
   const loadMoreData = useCallback(() => {

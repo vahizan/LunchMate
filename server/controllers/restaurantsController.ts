@@ -5,12 +5,13 @@ import {
   fetchRestaurantDetails as fetchGoogleRestaurantDetails,
   calculateTravelInfo,
 } from "../lib/maps";
-import { ScraperService } from "../lib/scraper";
+import { ScraperService, CrowdLevelData } from "../lib/scraper";
 import {
   fetchRestaurants as fetchFoursquareRestaurants,
   fetchRestaurantDetails as fetchFoursquareRestaurantDetails,
   fetchPlaceImages as fetchFoursquareImages
 } from "../lib/foursquare";
+import { calculateDistance } from "../lib/foursquare.utils";
 import { Location } from "@/types";
 
 
@@ -262,6 +263,39 @@ export async function getRestaurantById(req: Request, res: Response) {
         restaurant.travel_time = travelInfo.travel_time;
         restaurant.travel_distance = travelInfo.travel_distance;
         restaurant.estimated_arrival_time = travelInfo.estimated_arrival_time;
+      }
+    }
+
+    // Calculate distance if location is provided but not already set
+    if (location && restaurant.geometry?.location && !restaurant.distance) {
+      restaurant.distance = calculateDistance(
+        { lat: location.lat, lng: location.lng },
+        {
+          lat: restaurant.geometry.location.lat,
+          lng: restaurant.geometry.location.lng
+        }
+      );
+    }
+
+    // Fetch crowd level data if restaurant name is available
+    if (restaurant.name) {
+      try {
+        const crowdResult = await ScraperService.getInstance().extractCrowdLevelData(
+          restaurant.name,
+          restaurant.formatted_address || ""
+        );
+        
+        if (crowdResult.success && crowdResult.data) {
+          const crowdData = crowdResult.data;
+          if (crowdData.crowdLevel !== 'unknown') {
+            restaurant.crowd_level = crowdData.crowdLevel;
+            restaurant.peak_hours = crowdData.peakHours;
+            restaurant.averageTimeSpent = crowdData.averageTimeSpent;
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching crowd level data:", error);
+        // Continue without crowd data if there's an error
       }
     }
 

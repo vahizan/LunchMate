@@ -55,6 +55,7 @@ export const FilterOptions = () => {
   const [currentExcludeChains, setCurrentExcludeChains] = useState<boolean>();
   const [currentExcludeCafe, setCurrentExcludeCafe] = useState<boolean>();
   const [currentDepartureTime, setCurrentDepartureTime] = useState<string>();
+  const [isPastTime, setIsPastTime] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [dialogOpen, setDialogOpen] = useState<boolean>(false);
   const [customCuisine, setCustomCuisine] = useState<string>("");
@@ -69,6 +70,15 @@ export const FilterOptions = () => {
     setCurrentExcludeChains(filters.excludeChains);
     setCurrentExcludeCafe(filters.excludeCafe);
     setCurrentDepartureTime(filters.departureTime);
+    
+    // Check if the current departure time is in the past
+    if (filters.departureTime) {
+      const now = new Date();
+      const [hours, minutes] = filters.departureTime.split(':').map(Number);
+      const selectedTime = new Date();
+      selectedTime.setHours(hours, minutes, 0, 0);
+      setIsPastTime(selectedTime < now);
+    }
   }, [filters]);
 
   // Generic function to toggle array items (for cuisines and dietary restrictions)
@@ -188,6 +198,16 @@ export const FilterOptions = () => {
     const time = e.target.value;
     setCurrentDepartureTime(time);
     
+    // Check if selected time is in the past
+    const now = new Date();
+    const [hours, minutes] = time.split(':').map(Number);
+    const selectedTime = new Date();
+    selectedTime.setHours(hours, minutes, 0, 0);
+    
+    // Set isPastTime state based on comparison
+    const isPast = selectedTime < now;
+    setIsPastTime(isPast);
+    
     // Create a completely new object to ensure reference changes
     const newFilters = {
       ...filters,
@@ -250,11 +270,16 @@ export const FilterOptions = () => {
               type="time"
               value={currentDepartureTime}
               onChange={handleDepartureTimeChange}
-              className="w-full"
+              className={cn("w-full", isPastTime && "border-red-500 focus-visible:ring-red-500")}
             />
             <div className="text-xs text-gray-500 mt-1">
               When you plan to leave for lunch
             </div>
+            {isPastTime && (
+              <div className="text-red-500 font-medium text-sm mt-2 p-2 bg-red-50 rounded-md border border-red-200">
+                ⚠️ The selected time is in the past. Please choose a future time.
+              </div>
+            )}
           </div>
 
           {/* Cuisine Types */}

@@ -1,0 +1,383 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'LunchMate Application - Database Infrastructure (Nested Stack)'
+
+Parameters:
+  EnvironmentName:
+    Description: Environment name (qa or prod)
+    Type: String
+    Default: qa
+    AllowedValues:
+      - qa
+      - prod
+    ConstraintDescription: must be either qa or prod
+
+  DBInstanceClass:
+    Description: Database instance class
+    Type: String
+    Default: db.t3.small
+    AllowedValues:
+      - db.t3.micro
+      - db.t3.small
+      - db.t3.medium
+      - db.t3.large
+    ConstraintDescription: must be a valid RDS instance type
+
+  DBName:
+    Description: Database name
+    Type: String
+    Default: lunchmate
+    MinLength: 1
+    MaxLength: 64
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9_]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters or underscores
+
+  DBUsername:
+    Description: Database admin username
+    Type: String
+    Default: lunchmate_admin
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9_]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters or underscores
+
+  DBAllocatedStorage:
+    Description: The size of the database (GB)
+    Type: Number
+    Default: 20
+    MinValue: 20
+    MaxValue: 1000
+    ConstraintDescription: must be between 20 and 1000 GB
+
+  DBMaxAllocatedStorage:
+    Description: The maximum storage threshold for autoscaling (GB)
+    Type: Number
+    Default: 100
+    MinValue: 20
+    MaxValue: 1000
+    ConstraintDescription: must be between 20 and 1000 GB
+
+  DBBackupRetentionPeriod:
+    Description: The number of days to retain automated backups
+    Type: Number
+    Default: 7
+    MinValue: 1
+    MaxValue: 35
+    ConstraintDescription: must be between 1 and 35 days
+
+  DBEngineVersion:
+    Description: PostgreSQL engine version
+    Type: String
+    Default: '15.4'
+    AllowedValues:
+      - '14.10'
+      - '15.4'
+      - '16.1'
+    ConstraintDescription: must be a supported PostgreSQL version
+
+  EnablePerformanceInsights:
+    Description: Enable Performance Insights
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    ConstraintDescription: must be either true or false
+
+  EnableEnhancedMonitoring:
+    Description: Enable Enhanced Monitoring
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    ConstraintDescription: must be either true or false
+
+  MonitoringInterval:
+    Description: Enhanced Monitoring interval in seconds (0 to disable)
+    Type: Number
+    Default: 60
+    AllowedValues:
+      - 0
+      - 1
+      - 5
+      - 10
+      - 15
+      - 30
+      - 60
+    ConstraintDescription: must be one of the allowed values
+
+Conditions:
+  IsProduction: !Equals [!Ref EnvironmentName, 'prod']
+  EnableMultiAZ: !Equals [!Ref EnvironmentName, 'prod']
+  IsPerformanceInsightsEnabled: !Equals [!Ref EnablePerformanceInsights, 'true']
+  IsEnhancedMonitoringEnabled: !And
+    - !Equals [!Ref EnableEnhancedMonitoring, 'true']
+    - !Not [!Equals [!Ref MonitoringInterval, 0]]
+
+Resources:
+  # IAM Role for Enhanced Monitoring
+  MonitoringRole:
+    Type: AWS::IAM::Role
+    Condition: IsEnhancedMonitoringEnabled
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: monitoring.rds.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole'
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-rds-monitoring-role
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # Database Subnet Group
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub "Subnet group for ${EnvironmentName} LunchMate database"
+      SubnetIds:
+        - Fn::ImportValue: !Sub ${EnvironmentName}-LunchMate-PrivateSubnet1
+        - Fn::ImportValue: !Sub ${EnvironmentName}-LunchMate-PrivateSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-db-subnet-group
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # Database Parameter Group
+  DBParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Description: !Sub "Parameter group for ${EnvironmentName} LunchMate PostgreSQL database"
+      Family: !Sub "postgres${!Split['.', !Ref DBEngineVersion][0]}"
+      Parameters:
+        shared_buffers: !If [IsProduction, '1GB', '256MB']
+        max_connections: !If [IsProduction, '200', '100']
+        work_mem: !If [IsProduction, '16MB', '8MB']
+        maintenance_work_mem: !If [IsProduction, '256MB', '128MB']
+        effective_cache_size: !If [IsProduction, '3GB', '1GB']
+        log_min_duration_statement: '1000'  # Log queries taking more than 1 second
+        log_statement: 'ddl'  # Log all DDL statements
+        log_connections: 'on'
+        log_disconnections: 'on'
+        log_lock_waits: 'on'
+        log_temp_files: '0'
+        autovacuum: 'on'
+        track_activities: 'on'
+        track_counts: 'on'
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-db-parameter-group
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # Database Password Secret
+  DBPasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: !Sub "Password for ${EnvironmentName} LunchMate database"
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"username": "${DBUsername}"}'
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\'
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-db-password
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # Database Instance
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBName: !Ref DBName
+      Engine: postgres
+      EngineVersion: !Ref DBEngineVersion
+      DBInstanceClass: !Ref DBInstanceClass
+      AllocatedStorage: !Ref DBAllocatedStorage
+      MaxAllocatedStorage: !Ref DBMaxAllocatedStorage
+      StorageType: gp2
+      StorageEncrypted: true
+      MultiAZ: !If [EnableMultiAZ, true, false]
+      AutoMinorVersionUpgrade: true
+      PubliclyAccessible: false
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Join ['', ['{{resolve:secretsmanager:', !Ref DBPasswordSecret, ':SecretString:password}}' ]]
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - Fn::ImportValue: !Sub ${EnvironmentName}-LunchMate-RDSSecurityGroup
+      DBParameterGroupName: !Ref DBParameterGroup
+      BackupRetentionPeriod: !Ref DBBackupRetentionPeriod
+      PreferredBackupWindow: '03:00-04:00'
+      PreferredMaintenanceWindow: !If [IsProduction, 'sun:04:00-sun:06:00', 'sun:06:00-sun:08:00']
+      DeletionProtection: !If [IsProduction, true, false]
+      EnablePerformanceInsights: !If [IsPerformanceInsightsEnabled, true, false]
+      PerformanceInsightsRetentionPeriod: !If [IsPerformanceInsightsEnabled, 7, !Ref 'AWS::NoValue']
+      MonitoringInterval: !If [IsEnhancedMonitoringEnabled, !Ref MonitoringInterval, 0]
+      MonitoringRoleArn: !If [IsEnhancedMonitoringEnabled, !GetAtt MonitoringRole.Arn, !Ref 'AWS::NoValue']
+      CopyTagsToSnapshot: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-db
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # Database Connection Information Secret
+  DBConnectionSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: !Sub "Connection information for ${EnvironmentName} LunchMate database"
+      SecretString: !Sub '{"engine":"postgres","host":"${DBInstance.Endpoint.Address}","port":"${DBInstance.Endpoint.Port}","dbname":"${DBName}","username":"${DBUsername}","password":"{{resolve:secretsmanager:${DBPasswordSecret}:SecretString:password}}"}'
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-db-connection
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # CloudWatch Alarms
+  HighCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: !Sub "Alarm if CPU exceeds 80% for 5 minutes on ${EnvironmentName} LunchMate database"
+      Namespace: AWS/RDS
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref DBInstance
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 80
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref DBAlarmTopic
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-db-high-cpu-alarm
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  LowFreeStorageSpaceAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: !Sub "Alarm if free storage space is less than 20% for 5 minutes on ${EnvironmentName} LunchMate database"
+      Namespace: AWS/RDS
+      MetricName: FreeStorageSpace
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref DBInstance
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: !Div [!Mul [!Ref DBAllocatedStorage, 1024, 1024, 1024, 0.2], 1]
+      ComparisonOperator: LessThanThreshold
+      AlarmActions:
+        - !Ref DBAlarmTopic
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-db-low-storage-alarm
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  HighDatabaseConnectionsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: !Sub "Alarm if database connections exceed 80% of max for 5 minutes on ${EnvironmentName} LunchMate database"
+      Namespace: AWS/RDS
+      MetricName: DatabaseConnections
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref DBInstance
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: !If [IsProduction, 160, 80]  # 80% of max_connections parameter
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref DBAlarmTopic
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-db-connections-alarm
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # SNS Topic for Database Alarms
+  DBAlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub "${EnvironmentName}-LunchMate-DBAlarms"
+      TopicName: !Sub "${EnvironmentName}-LunchMate-DBAlarms"
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-lunchmate-db-alarm-topic
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+Outputs:
+  DBInstanceIdentifier:
+    Description: Database instance identifier
+    Value: !Ref DBInstance
+    Export:
+      Name: !Sub "${EnvironmentName}-LunchMate-DBInstanceIdentifier"
+
+  DBEndpointAddress:
+    Description: Database endpoint address
+    Value: !GetAtt DBInstance.Endpoint.Address
+    Export:
+      Name: !Sub "${EnvironmentName}-LunchMate-DBEndpointAddress"
+
+  DBEndpointPort:
+    Description: Database endpoint port
+    Value: !GetAtt DBInstance.Endpoint.Port
+    Export:
+      Name: !Sub "${EnvironmentName}-LunchMate-DBEndpointPort"
+
+  DBName:
+    Description: Database name
+    Value: !Ref DBName
+    Export:
+      Name: !Sub "${EnvironmentName}-LunchMate-DBName"
+
+  DBUsername:
+    Description: Database username
+    Value: !Ref DBUsername
+    Export:
+      Name: !Sub "${EnvironmentName}-LunchMate-DBUsername"
+
+  DBPasswordSecretARN:
+    Description: ARN of the secret containing the database password
+    Value: !Ref DBPasswordSecret
+    Export:
+      Name: !Sub "${EnvironmentName}-LunchMate-DBPasswordSecretARN"
+
+  DBConnectionSecretARN:
+    Description: ARN of the secret containing the database connection information
+    Value: !Ref DBConnectionSecret
+    Export:
+      Name: !Sub "${EnvironmentName}-LunchMate-DBConnectionSecretARN"

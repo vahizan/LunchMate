@@ -1,6 +1,19 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Crowd data table
+export const crowdData = pgTable("crowd_data", {
+  id: serial("id").primaryKey(),
+  restaurantId: text("restaurant_id").notNull().unique(),
+  restaurantName: text("restaurant_name").notNull(),
+  crowdLevel: text("crowd_level").notNull(), // 'busy', 'moderate', 'not_busy', 'unknown'
+  crowdPercentage: integer("crowd_percentage"),
+  peakHours: jsonb("peak_hours"), // Array of peak hour objects
+  averageTimeSpent: text("average_time_spent"),
+  lastUpdated: timestamp("last_updated").defaultNow().notNull(),
+  source: text("source").default("google").notNull(),
+});
 
 // User table
 export const users = pgTable("users", {
@@ -132,3 +145,17 @@ export type TeamSuggestion = typeof teamSuggestions.$inferSelect;
 
 export type InsertTeamVote = z.infer<typeof insertTeamVoteSchema>;
 export type TeamVote = typeof teamVotes.$inferSelect;
+
+// Create insert schema for crowd data
+export const insertCrowdDataSchema = createInsertSchema(crowdData).pick({
+  restaurantId: true,
+  restaurantName: true,
+  crowdLevel: true,
+  crowdPercentage: true,
+  peakHours: true,
+  averageTimeSpent: true,
+  source: true,
+});
+
+export type InsertCrowdData = z.infer<typeof insertCrowdDataSchema>;
+export type CrowdData = typeof crowdData.$inferSelect;
