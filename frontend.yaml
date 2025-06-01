@@ -12,9 +12,9 @@ Parameters:
     ConstraintDescription: must be either qa or prod
 
   DomainName:
-    Description: Main domain name for the application (e.g., lunchmate.com)
+    Description: Main domain name for the application (e.g., whatsforlunch.to)
     Type: String
-    Default: lunchmate.com
+    Default: whatsforlunch.to
 
   SubDomainPrefix:
     Description: Subdomain prefix for non-production environments (e.g., qa)
@@ -32,10 +32,18 @@ Parameters:
   HostedZoneId:
     Description: Route53 Hosted Zone ID for the domain
     Type: String
+    Default: ''
+    
+  CertificateArn:
+    Description: ARN of the ACM certificate for CloudFront
+    Type: String
+    Default: ''
 
 Conditions:
   IsProduction: !Equals [!Ref EnvironmentName, 'prod']
   CreateDNSRecords: !Equals [!Ref CreateRoute53Records, 'true']
+  IsImportedCertificate: !Not [!Equals [!Ref CertificateArn, '']]
+  IsImportedHostedZone: !Not [!Equals [!Ref HostedZoneId, '']]
 
 Resources:
   # S3 Bucket for Website Hosting
@@ -43,10 +51,10 @@ Resources:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
-      BucketName: !If 
+      BucketName: !If
         - IsProduction
         - !Sub ${DomainName}-website
-        - !Sub ${SubDomainPrefix}.${DomainName}-website
+        - !Sub ${SubDomainPrefix}-${DomainName}-website
       AccessControl: Private
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
@@ -91,30 +99,7 @@ Resources:
             Action: 's3:GetObject'
             Resource: !Sub '${WebsiteBucket.Arn}/*'
 
-  # ACM Certificate for HTTPS
-  Certificate:
-    Type: AWS::CertificateManager::Certificate
-    Properties:
-      DomainName: !If 
-        - IsProduction
-        - !Ref DomainName
-        - !Sub "${SubDomainPrefix}.${DomainName}"
-      SubjectAlternativeNames:
-        - !If 
-          - IsProduction
-          - !Sub "www.${DomainName}"
-          - !Ref AWS::NoValue
-      ValidationMethod: DNS
-      Tags:
-        - Key: Name
-          Value: !If 
-            - IsProduction
-            - !Sub "${DomainName}-certificate"
-            - !Sub "${SubDomainPrefix}.${DomainName}-certificate"
-        - Key: Environment
-          Value: !Ref EnvironmentName
-        - Key: Application
-          Value: LunchMate
+  # Use imported certificate from networking stack
 
   # CloudFront Cache Policy
   CloudFrontCachePolicy:
@@ -173,7 +158,16 @@ Resources:
           Compress: true
         PriceClass: PriceClass_100
         ViewerCertificate:
-          AcmCertificateArn: !Ref Certificate
+          AcmCertificateArn: !If
+            - IsProduction
+            - !If
+              - IsImportedCertificate
+              - !Ref CertificateArn
+              - Fn::ImportValue: !Sub "${EnvironmentName}-LunchMate-CertificateArn"
+            - !If
+              - IsImportedCertificate
+              - !Ref CertificateArn
+              - Fn::ImportValue: !Sub "${EnvironmentName}-LunchMate-CertificateArn"
           MinimumProtocolVersion: TLSv1.2_2021
           SslSupportMethod: sni-only
         CustomErrorResponses:
@@ -201,7 +195,10 @@ Resources:
     Type: AWS::Route53::RecordSet
     Condition: CreateDNSRecords
     Properties:
-      HostedZoneId: !Ref HostedZoneId
+      HostedZoneId: !If
+        - IsImportedHostedZone
+        - !Ref HostedZoneId
+        - Fn::ImportValue: !Sub "${EnvironmentName}-LunchMate-HostedZoneId"
       Name: !If 
         - IsProduction
         - !Ref DomainName
@@ -217,7 +214,10 @@ Resources:
     Type: AWS::Route53::RecordSet
     Condition: !And [CreateDNSRecords, IsProduction]
     Properties:
-      HostedZoneId: !Ref HostedZoneId
+      HostedZoneId: !If
+        - IsImportedHostedZone
+        - !Ref HostedZoneId
+        - Fn::ImportValue: !Sub "${EnvironmentName}-LunchMate-HostedZoneId"
       Name: !Sub "www.${DomainName}"
       Type: A
       AliasTarget:

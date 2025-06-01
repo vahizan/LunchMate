@@ -76,10 +76,32 @@ Parameters:
     Description: ARN of the SSL certificate for the load balancer
     Type: String
     Default: ''
+    
+  DomainName:
+    Description: Main domain name for the application (e.g., whatsforlunch.to)
+    Type: String
+    Default: whatsforlunch.to
+    
+  SubDomainPrefix:
+    Description: Subdomain prefix for non-production environments (e.g., qa)
+    Type: String
+    Default: qa
+    
+  ApiGatewayCertificateARN:
+    Description: ARN of the ACM certificate for API Gateway custom domain
+    Type: String
+    Default: ''
+    
+  HostedZoneId:
+    Description: Route53 Hosted Zone ID for the domain
+    Type: String
+    Default: ''
 
 Conditions:
   IsProduction: !Equals [!Ref EnvironmentName, 'prod']
   HasSSLCertificate: !Not [!Equals [!Ref SSLCertificateARN, '']]
+  IsImportedApiCertificate: !Not [!Equals [!Ref ApiGatewayCertificateARN, '']]
+  IsImportedHostedZone: !Not [!Equals [!Ref HostedZoneId, '']]
 
 Resources:
   # IAM Role for Elastic Beanstalk Service
@@ -471,6 +493,60 @@ Resources:
           Value: !Ref EnvironmentName
         - Key: Application
           Value: LunchMate
+          
+  # API Gateway Custom Domain
+  ApiGatewayDomainName:
+    Type: AWS::ApiGateway::DomainName
+    Properties:
+      DomainName: !If
+        - IsProduction
+        - !Sub "api.${DomainName}"
+        - !Sub "api.${SubDomainPrefix}.${DomainName}"
+      CertificateArn: !If
+        - IsImportedApiCertificate
+        - !Ref ApiGatewayCertificateARN
+        - Fn::ImportValue: !Sub "${EnvironmentName}-LunchMate-ApiGatewayCertificateArn"
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      SecurityPolicy: TLS_1_2
+      Tags:
+        - Key: Name
+          Value: !If
+            - IsProduction
+            - !Sub "api.${DomainName}"
+            - !Sub "api.${SubDomainPrefix}.${DomainName}"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+          
+  # API Gateway Base Path Mapping
+  ApiGatewayBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    DependsOn: ElasticBeanstalkEnvironment
+    Properties:
+      DomainName: !Ref ApiGatewayDomainName
+      RestApiId: !GetAtt ElasticBeanstalkEnvironment.APIGatewayId
+      Stage: !If [IsProduction, 'prod', 'qa']
+      
+  # Route53 Record for API Gateway
+  ApiDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !If
+        - IsImportedHostedZone
+        - !Ref HostedZoneId
+        - Fn::ImportValue: !Sub "${EnvironmentName}-LunchMate-HostedZoneId"
+      Name: !If
+        - IsProduction
+        - !Sub "api.${DomainName}"
+        - !Sub "api.${SubDomainPrefix}.${DomainName}"
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt ApiGatewayDomainName.RegionalDomainName
+        HostedZoneId: !GetAtt ApiGatewayDomainName.RegionalHostedZoneId
+        EvaluateTargetHealth: false
 
 Outputs:
   ElasticBeanstalkApplicationName:
@@ -532,3 +608,18 @@ Outputs:
     Value: !Ref HealthTopic
     Export:
       Name: !Sub "${EnvironmentName}-LunchMate-HealthTopicARN"
+      
+  ApiGatewayDomainNameOutput:
+    Description: API Gateway custom domain name
+    Value: !Ref ApiGatewayDomainName
+    Export:
+      Name: !Sub "${EnvironmentName}-LunchMate-ApiGatewayDomainName"
+      
+  ApiEndpoint:
+    Description: API endpoint URL with custom domain
+    Value: !If
+      - IsProduction
+      - !Sub "https://api.${DomainName}"
+      - !Sub "https://api.${SubDomainPrefix}.${DomainName}"
+    Export:
+      Name: !Sub "${EnvironmentName}-LunchMate-ApiEndpoint"

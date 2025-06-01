@@ -163,9 +163,9 @@ Parameters:
 
   # Frontend Parameters
   DomainName:
-    Description: Main domain name for the application (e.g., lunchmate.com)
+    Description: Main domain name for the application (e.g., whatsforlunch.to)
     Type: String
-    Default: lunchmate.com
+    Default: whatsforlunch.to
 
   SubDomainPrefix:
     Description: Subdomain prefix for non-production environments (e.g., qa)
@@ -418,6 +418,8 @@ Resources:
       TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/networking.yaml"
       Parameters:
         EnvironmentName: !Ref EnvironmentName
+        DomainName: !Ref DomainName
+        SubDomainPrefix: !Ref SubDomainPrefix
         VpcCIDR: !Ref VpcCIDR
         PublicSubnet1CIDR: !Ref PublicSubnet1CIDR
         PublicSubnet2CIDR: !Ref PublicSubnet2CIDR
@@ -469,6 +471,8 @@ Resources:
         EnvironmentName: !Ref EnvironmentName
         ApplicationName: LunchMate
         EnvironmentNamePrefix: lunchmate
+        DomainName: !Ref DomainName
+        SubDomainPrefix: !Ref SubDomainPrefix
         NodeJSVersion: !Ref NodeJSVersion
         InstanceType: !Ref InstanceType
         MinInstances: !Ref MinInstances
@@ -477,6 +481,10 @@ Resources:
         ScaleDownThreshold: !Ref ScaleDownThreshold
         SecretsManagerARN: !Ref SecretsManagerSecret
         SSLCertificateARN: !Ref SSLCertificateARN
+        ApiGatewayCertificateARN:
+          Fn::ImportValue: !Sub "${EnvironmentName}-LunchMate-ApiGatewayCertificateArn"
+        HostedZoneId:
+          Fn::ImportValue: !Sub "${EnvironmentName}-LunchMate-HostedZoneId"
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-lunchmate-backend-stack"
@@ -496,7 +504,10 @@ Resources:
         DomainName: !Ref DomainName
         SubDomainPrefix: !Ref SubDomainPrefix
         CreateRoute53Records: !Ref CreateRoute53Records
-        HostedZoneId: !Ref HostedZoneId
+        HostedZoneId:
+          Fn::ImportValue: !Sub "${EnvironmentName}-LunchMate-HostedZoneId"
+        CertificateArn:
+          Fn::ImportValue: !Sub "${EnvironmentName}-LunchMate-CertificateArn"
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-lunchmate-frontend-stack"

@@ -10,6 +10,16 @@ Parameters:
       - qa
       - prod
     ConstraintDescription: must be either qa or prod
+    
+  DomainName:
+    Description: Main domain name for the application (e.g., whatsforlunch.to)
+    Type: String
+    Default: whatsforlunch.to
+    
+  SubDomainPrefix:
+    Description: Subdomain prefix for non-production environments (e.g., qa)
+    Type: String
+    Default: qa
 
   VpcCIDR:
     Description: CIDR block for the VPC
@@ -36,7 +46,67 @@ Parameters:
     Type: String
     Default: 10.0.3.0/24
 
+Conditions:
+  IsProduction: !Equals [!Ref EnvironmentName, 'prod']
+
 Resources:
+  # Route 53 Hosted Zone
+  HostedZone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref DomainName
+      HostedZoneConfig:
+        Comment: !Sub "Hosted zone for ${DomainName} (${EnvironmentName} environment)"
+      Tags:
+        - Key: Name
+          Value: !Sub "${DomainName}-hosted-zone"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # ACM Certificate for main domain and wildcard subdomains
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      SubjectAlternativeNames:
+        - !Sub "*.${DomainName}"
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref DomainName
+          HostedZoneId: !Ref HostedZone
+        - DomainName: !Sub "*.${DomainName}"
+          HostedZoneId: !Ref HostedZone
+      Tags:
+        - Key: Name
+          Value: !Sub "${DomainName}-certificate"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
+  # API Gateway Certificate (us-east-1 specific for API Gateway custom domains)
+  ApiGatewayCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Sub "api.${DomainName}"
+      SubjectAlternativeNames:
+        - !If [IsProduction, !Ref AWS::NoValue, !Sub "api.${SubDomainPrefix}.${DomainName}"]
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Sub "api.${DomainName}"
+          HostedZoneId: !Ref HostedZone
+        - DomainName: !If [IsProduction, !Ref AWS::NoValue, !Sub "api.${SubDomainPrefix}.${DomainName}"]
+          HostedZoneId: !Ref HostedZone
+      Tags:
+        - Key: Name
+          Value: !Sub "api.${DomainName}-certificate"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: LunchMate
+
   # VPC
   VPC:
     Type: AWS::EC2::VPC
@@ -316,6 +386,32 @@ Resources:
           Value: LunchMate
 
 Outputs:
+  # Route53 and ACM Outputs
+  HostedZoneId:
+    Description: Route53 Hosted Zone ID
+    Value: !Ref HostedZone
+    Export:
+      Name: !Sub ${EnvironmentName}-LunchMate-HostedZoneId
+
+  CertificateArn:
+    Description: ACM Certificate ARN for CloudFront
+    Value: !Ref Certificate
+    Export:
+      Name: !Sub ${EnvironmentName}-LunchMate-CertificateArn
+
+  ApiGatewayCertificateArn:
+    Description: ACM Certificate ARN for API Gateway
+    Value: !Ref ApiGatewayCertificate
+    Export:
+      Name: !Sub ${EnvironmentName}-LunchMate-ApiGatewayCertificateArn
+
+  DomainNameOutput:
+    Description: Domain name
+    Value: !Ref DomainName
+    Export:
+      Name: !Sub ${EnvironmentName}-LunchMate-DomainName
+
+  # VPC Outputs
   VPC:
     Description: VPC ID
     Value: !Ref VPC

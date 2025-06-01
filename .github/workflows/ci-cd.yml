@@ -1,0 +1,414 @@
+name: LunchMate CI/CD
+
+# Purpose: This unified workflow handles the complete CI/CD pipeline for the LunchMate application.
+# It replaces the separate frontend.yml and backend.yml workflows with a single, comprehensive workflow.
+#
+# Key Features:
+# - Unified testing and building for both frontend and backend components
+# - CloudFormation-based infrastructure deployment
+# - Multi-environment support (QA and Production)
+# - Component-specific deployment options
+#
+# CloudFormation Deployment:
+# - Uses nested templates (master.yaml, frontend.yaml, backend.yaml, networking.yaml, database.yaml)
+# - Templates are uploaded to environment-specific S3 buckets
+# - Infrastructure is created/updated based on environment parameters
+#
+# Deployment Environments:
+# - QA: Automatic deployment on push to main branch
+# - Production: Requires manual approval via environment protection rules
+#
+# Triggering Specific Deployments:
+# - Automatic: Push to main branch triggers tests and QA deployment
+# - Manual: Use workflow_dispatch with environment (qa/prod) and component (all/frontend/backend) options
+# - Production deployments require approval via the GitHub environment protection rules
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'client/**'
+      - 'server/**'
+      - 'shared/**'
+      - '.github/workflows/ci-cd.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'client/**'
+      - 'server/**'
+      - 'shared/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'qa'
+        type: choice
+        options:
+          - qa
+          - prod
+      component:
+        description: 'Component to deploy'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - frontend
+          - backend
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [frontend, backend]
+        include:
+          - component: frontend
+            test_path: client/src
+            paths: '{client/**}'
+          - component: backend
+            test_path: server/lib/__tests__
+            paths: '{server/**,shared/**}'
+    if: |
+      github.event_name == 'pull_request' || 
+      github.event_name == 'push' || 
+      (github.event_name == 'workflow_dispatch' && 
+       (github.event.inputs.component == 'all' || github.event.inputs.component == matrix.component))
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test -- ${{ matrix.test_path }}
+
+  build:
+    name: Build ${{ matrix.component }}
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [frontend, backend]
+        include:
+          - component: frontend
+            artifact_name: frontend-build
+            artifact_path: dist/client
+          - component: backend
+            artifact_name: backend-build
+            artifact_path: eb-bundle.zip
+    if: |
+      github.event_name == 'push' || 
+      (github.event_name == 'workflow_dispatch' && 
+       (github.event.inputs.component == 'all' || github.event.inputs.component == matrix.component))
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        if: matrix.component == 'frontend'
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Build backend
+        if: matrix.component == 'backend'
+        run: |
+          npm run build
+          # Create Elastic Beanstalk bundle
+          mkdir -p eb-bundle
+          cp -r dist/* eb-bundle/
+          cp package.json package-lock.json eb-bundle/
+          cd eb-bundle
+          zip -r ../eb-bundle.zip .
+        env:
+          NODE_ENV: production
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
+          retention-days: 7
+
+  deploy-cloudformation:
+    name: Deploy CloudFormation Stack
+    needs: build
+    if: |
+      github.event_name == 'push' || 
+      (github.event_name == 'workflow_dispatch' && 
+       (github.event.inputs.component == 'all'))
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'qa' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Create S3 bucket for CloudFormation templates if it doesn't exist
+        run: |
+          ENV="${{ github.event.inputs.environment || 'qa' }}"
+          BUCKET_NAME="lunchmate-artifacts-${ENV}-${{ secrets.AWS_REGION }}"
+          
+          if ! aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
+            aws s3 mb "s3://$BUCKET_NAME" --region ${{ secrets.AWS_REGION }}
+            aws s3api put-bucket-versioning --bucket "$BUCKET_NAME" --versioning-configuration Status=Enabled
+          fi
+
+      - name: Upload CloudFormation templates to S3
+        run: |
+          ENV="${{ github.event.inputs.environment || 'qa' }}"
+          BUCKET_NAME="lunchmate-artifacts-${ENV}-${{ secrets.AWS_REGION }}"
+          
+          # Create templates directory in S3 bucket
+          aws s3api put-object --bucket "$BUCKET_NAME" --key "templates/"
+          
+          # Upload templates
+          aws s3 cp master.yaml "s3://$BUCKET_NAME/templates/"
+          aws s3 cp backend.yaml "s3://$BUCKET_NAME/templates/"
+          aws s3 cp frontend.yaml "s3://$BUCKET_NAME/templates/"
+          aws s3 cp networking.yaml "s3://$BUCKET_NAME/templates/"
+          aws s3 cp database.yaml "s3://$BUCKET_NAME/templates/"
+
+      - name: Deploy CloudFormation stack
+        run: |
+          ENV="${{ github.event.inputs.environment || 'qa' }}"
+          STACK_NAME="lunchmate-${ENV}"
+          PARAMS_FILE="${ENV}-parameters.json"
+          
+          # Set domain name based on environment
+          DOMAIN_NAME="whatsforlunch.to"
+          if [ "$ENV" == "qa" ]; then
+            SUBDOMAIN_PREFIX="qa"
+          else
+            SUBDOMAIN_PREFIX=""
+          fi
+          
+          # Check if stack exists
+          if aws cloudformation describe-stacks --stack-name "$STACK_NAME" 2>/dev/null; then
+            # Update existing stack
+            aws cloudformation update-stack \
+              --stack-name "$STACK_NAME" \
+              --template-url "https://lunchmate-artifacts-${ENV}-${{ secrets.AWS_REGION }}.s3.amazonaws.com/templates/master.yaml" \
+              --parameters file://$PARAMS_FILE \
+              --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
+          else
+            # Create new stack
+            aws cloudformation create-stack \
+              --stack-name "$STACK_NAME" \
+              --template-url "https://lunchmate-artifacts-${ENV}-${{ secrets.AWS_REGION }}.s3.amazonaws.com/templates/master.yaml" \
+              --parameters file://$PARAMS_FILE \
+              --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
+          fi
+          
+          # Wait for stack creation/update to complete
+          aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME" || \
+          aws cloudformation wait stack-update-complete --stack-name "$STACK_NAME"
+          
+          # Verify SSL certificate validation status
+          echo "Checking SSL certificate validation status..."
+          CERT_ARN=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='CertificateArn'].OutputValue" \
+            --output text)
+            
+          if [ -n "$CERT_ARN" ]; then
+            VALIDATION_STATUS=$(aws acm describe-certificate \
+              --certificate-arn "$CERT_ARN" \
+              --query "Certificate.Status" \
+              --output text)
+              
+            echo "Certificate validation status: $VALIDATION_STATUS"
+            
+            if [ "$VALIDATION_STATUS" != "ISSUED" ]; then
+              echo "Certificate is not yet validated. You may need to add DNS validation records."
+              aws acm describe-certificate \
+                --certificate-arn "$CERT_ARN" \
+                --query "Certificate.DomainValidationOptions[].ResourceRecord" \
+                --output json
+            fi
+          fi
+
+  deploy-qa:
+    name: Deploy to QA
+    needs: build
+    if: |
+      (github.event_name == 'push') || 
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'qa')
+    runs-on: ubuntu-latest
+    environment: qa
+    strategy:
+      matrix:
+        component: [frontend, backend]
+        include:
+          - component: frontend
+            artifact_name: frontend-build
+            artifact_path: dist/client
+          - component: backend
+            artifact_name: backend-build
+            artifact_path: ./
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # Frontend deployment
+      - name: Deploy frontend to S3
+        if: matrix.component == 'frontend'
+        run: |
+          # Get S3 bucket name from CloudFormation stack outputs
+          BUCKET_NAME=$(aws cloudformation describe-stacks \
+            --stack-name lunchmate-qa \
+            --query "Stacks[0].Outputs[?ExportName=='qa-LunchMate-WebsiteBucketName'].OutputValue" \
+            --output text)
+          
+          aws s3 sync dist/client s3://$BUCKET_NAME --delete
+          
+          # Set appropriate cache-control headers for different file types
+          echo "Setting cache-control headers..."
+          aws s3 cp s3://$BUCKET_NAME s3://$BUCKET_NAME --recursive --exclude "*" --include "*.html" --metadata-directive REPLACE --cache-control "max-age=3600" --content-type "text/html"
+          aws s3 cp s3://$BUCKET_NAME s3://$BUCKET_NAME --recursive --exclude "*" --include "*.css" --metadata-directive REPLACE --cache-control "max-age=86400" --content-type "text/css"
+          aws s3 cp s3://$BUCKET_NAME s3://$BUCKET_NAME --recursive --exclude "*" --include "*.js" --metadata-directive REPLACE --cache-control "max-age=86400" --content-type "application/javascript"
+          aws s3 cp s3://$BUCKET_NAME s3://$BUCKET_NAME --recursive --exclude "*" --include "*.jpg" --include "*.jpeg" --include "*.png" --include "*.gif" --metadata-directive REPLACE --cache-control "max-age=604800"
+
+      - name: Invalidate CloudFront
+        if: matrix.component == 'frontend'
+        run: |
+          # Get CloudFront distribution ID from CloudFormation stack outputs
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name lunchmate-qa \
+            --query "Stacks[0].Outputs[?ExportName=='qa-LunchMate-CloudFrontDistributionId'].OutputValue" \
+            --output text)
+          
+          aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"
+
+      # Backend deployment
+      - name: Deploy backend to Elastic Beanstalk
+        if: matrix.component == 'backend'
+        uses: einaregilsson/beanstalk-deploy@v21
+        with:
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          application_name: ${{ secrets.EB_APPLICATION_NAME }}
+          environment_name: ${{ secrets.EB_ENVIRONMENT_NAME }}
+          version_label: "lunchmate-backend-${{ github.run_number }}-${{ github.run_attempt }}"
+          region: ${{ secrets.AWS_REGION }}
+          deployment_package: eb-bundle.zip
+          wait_for_environment_recovery: 300
+
+  approve-prod-deployment:
+    name: Approve Production Deployment
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod'
+    runs-on: ubuntu-latest
+    environment: 
+      name: prod-approval
+    steps:
+      - name: Approval notification
+        run: echo "Production deployment has been approved"
+
+  deploy-prod:
+    name: Deploy to Production
+    needs: approve-prod-deployment
+    runs-on: ubuntu-latest
+    environment: prod
+    strategy:
+      matrix:
+        component: [frontend, backend]
+        include:
+          - component: frontend
+            artifact_name: frontend-build
+            artifact_path: dist/client
+          - component: backend
+            artifact_name: backend-build
+            artifact_path: ./
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # Frontend deployment
+      - name: Deploy frontend to S3
+        if: matrix.component == 'frontend'
+        run: |
+          # Get S3 bucket name from CloudFormation stack outputs
+          BUCKET_NAME=$(aws cloudformation describe-stacks \
+            --stack-name lunchmate-prod \
+            --query "Stacks[0].Outputs[?ExportName=='prod-LunchMate-WebsiteBucketName'].OutputValue" \
+            --output text)
+          
+          aws s3 sync dist/client s3://$BUCKET_NAME --delete
+          
+          # Set appropriate cache-control headers for different file types
+          echo "Setting cache-control headers..."
+          aws s3 cp s3://$BUCKET_NAME s3://$BUCKET_NAME --recursive --exclude "*" --include "*.html" --metadata-directive REPLACE --cache-control "max-age=3600" --content-type "text/html"
+          aws s3 cp s3://$BUCKET_NAME s3://$BUCKET_NAME --recursive --exclude "*" --include "*.css" --metadata-directive REPLACE --cache-control "max-age=86400" --content-type "text/css"
+          aws s3 cp s3://$BUCKET_NAME s3://$BUCKET_NAME --recursive --exclude "*" --include "*.js" --metadata-directive REPLACE --cache-control "max-age=86400" --content-type "application/javascript"
+          aws s3 cp s3://$BUCKET_NAME s3://$BUCKET_NAME --recursive --exclude "*" --include "*.jpg" --include "*.jpeg" --include "*.png" --include "*.gif" --metadata-directive REPLACE --cache-control "max-age=604800"
+
+      - name: Invalidate CloudFront
+        if: matrix.component == 'frontend'
+        run: |
+          # Get CloudFront distribution ID from CloudFormation stack outputs
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name lunchmate-prod \
+            --query "Stacks[0].Outputs[?ExportName=='prod-LunchMate-CloudFrontDistributionId'].OutputValue" \
+            --output text)
+          
+          aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"
+
+      # Backend deployment
+      - name: Deploy backend to Elastic Beanstalk
+        if: matrix.component == 'backend'
+        uses: einaregilsson/beanstalk-deploy@v21
+        with:
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          application_name: ${{ secrets.EB_APPLICATION_NAME }}
+          environment_name: ${{ secrets.EB_ENVIRONMENT_NAME }}
+          version_label: "lunchmate-backend-${{ github.run_number }}-${{ github.run_attempt }}"
+          region: ${{ secrets.AWS_REGION }}
+          deployment_package: eb-bundle.zip
+          wait_for_environment_recovery: 300
