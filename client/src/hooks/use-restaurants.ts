@@ -82,7 +82,7 @@ export function useRestaurants(props?: { limit?: string }) {
       } : null
     });
   }, [location, filters]);
-  
+
   // Reset state when location or filters change
   useEffect(() => {
     if (hasFiltersOrLocationChanged) {
@@ -279,12 +279,13 @@ export function useRestaurants(props?: { limit?: string }) {
   }, [location, filters, buildUrlParams]);
 
   // Pick random restaurant
-  const pickRandomRestaurant = useCallback(async () => {
+  const pickRandomRestaurant = async () => {
     try {
       console.log("Picking random restaurant");
       setIsRandomPickLoading(true);
       
       // If there's a previously selected restaurant, add it to skipped IDs
+
       if (lastSelectedId) {
         setSkippedIds(prev => {
           const newSkipped = new Set(prev);
@@ -318,7 +319,6 @@ export function useRestaurants(props?: { limit?: string }) {
       
       // Filter out skipped IDs from the available options
       const availableIds = currentIds.filter(id => !skippedIds.has(id.fsq_id));
-      
       let randomId: string;
       
       // Check if we have any IDs left after filtering
@@ -351,8 +351,6 @@ export function useRestaurants(props?: { limit?: string }) {
       const restaurantByIdParams = buildUrlParams(
         location,
         filters,
-        undefined,
-        {}
       );
       
       // Fetch full details for the selected restaurant
@@ -415,17 +413,7 @@ export function useRestaurants(props?: { limit?: string }) {
     } finally {
       setIsRandomPickLoading(false);
     }
-  }, [
-    location,
-    filters,
-    lastSelectedId,
-    restaurantIds,
-    skippedIds,
-    hasFiltersOrLocationChanged,
-    fetchRestaurantIds,
-    buildUrlParams,
-    toast
-  ]);
+  };
 
   // Add restaurant to team suggestion
   const addToTeamMutation = useMutation({
