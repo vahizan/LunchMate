@@ -113,7 +113,7 @@ jobs:
          run: npm test -- server/lib/__tests__
 
    build:
-    name: Build ${{ matrix.component }}
+    name: Build ${{ github.event.inputs.component }}
     needs: [test-frontend, test-backend]
     runs-on: ubuntu-latest
     strategy:
