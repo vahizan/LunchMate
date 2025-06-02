@@ -65,7 +65,6 @@ jobs:
       matrix:
         component: [frontend]
         version: [20]
-        test_path: 'client/src'
     if: |
       github.event_name != 'workflow_dispatch' ||
       github.event.inputs.component == 'all' ||
@@ -84,7 +83,7 @@ jobs:
          run: npm ci
 
        - name: Run tests
-         run: npm test -- ${{ matrix.test_path }}
+         run: npm test -- client/src
 
    test-backend:
     name: Test Backend
@@ -93,7 +92,6 @@ jobs:
       matrix:
         component: [backend]
         version: [20]
-        test_path: 'server/lib/__tests__'
     if: |
       github.event_name != 'workflow_dispatch' ||
       github.event.inputs.component == 'all' ||
@@ -112,7 +110,7 @@ jobs:
          run: npm ci
 
        - name: Run tests
-         run: npm test -- ${{ matrix.test_path }}
+         run: npm test -- server/lib/__tests__
 
    build:
     name: Build ${{ matrix.component }}
