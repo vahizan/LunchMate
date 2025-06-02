@@ -129,6 +129,7 @@ jobs:
             artifact_path: eb-bundle.zip
     if: |
       github.event_name == 'push' ||
+      github.event_name == 'pull_request' ||
       (github.event_name == 'workflow_dispatch' &&
        (github.event.inputs.component == 'all' || github.event.inputs.component == 'frontend' || github.event.inputs.component == 'backend'))
     steps:
