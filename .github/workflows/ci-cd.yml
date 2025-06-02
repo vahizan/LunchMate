@@ -113,12 +113,13 @@ jobs:
          run: npm test -- server/lib/__tests__
 
    build:
-    name: Build ${{ github.event.inputs.component }}
+    name: Build
     needs: [test-frontend, test-backend]
     runs-on: ubuntu-latest
     strategy:
       matrix:
         component: [frontend, backend]
+        version: [20]
         include:
           - component: frontend
             artifact_name: frontend-build
@@ -137,7 +138,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '${{matrix.version}}'
           cache: 'npm'
 
       - name: Install dependencies
@@ -145,14 +146,14 @@ jobs:
 
       - name: Build frontend
         if: matrix.component == 'frontend'
-        run: npm run build
+        run: npm run build:frontend
         env:
           NODE_ENV: prod
 
       - name: Build backend
         if: matrix.component == 'backend'
         run: |
-          npm run build
+          npm run build:backend
           # Create Elastic Beanstalk bundle
           mkdir -p eb-bundle
           cp -r dist/* eb-bundle/
