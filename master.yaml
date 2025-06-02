@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'LunchMate Application - Master CloudFormation Template'
+Description: 'WhatsForLunch Application - Master CloudFormation Template'
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -252,7 +252,7 @@ Parameters:
   DBName:
     Description: Database name
     Type: String
-    Default: lunchmate
+    Default: whatsforlunch
     MinLength: 1
     MaxLength: 64
     AllowedPattern: '[a-zA-Z][a-zA-Z0-9_]*'
@@ -261,7 +261,7 @@ Parameters:
   DBUsername:
     Description: Database admin username
     Type: String
-    Default: lunchmate_admin
+    Default: whatsforlunch_admin
     MinLength: 1
     MaxLength: 16
     AllowedPattern: '[a-zA-Z][a-zA-Z0-9_]*'
@@ -338,12 +338,12 @@ Parameters:
   GitHubOwner:
     Description: GitHub repository owner
     Type: String
-    Default: lunchmate
+    Default: whatsforlunch
 
   GitHubRepo:
     Description: GitHub repository name
     Type: String
-    Default: lunchmate-app
+    Default: whatsforlunch-app
 
   GitHubBranch:
     Description: GitHub branch to monitor for changes
@@ -358,7 +358,7 @@ Parameters:
   NotificationEmail:
     Description: Email address to receive pipeline notifications
     Type: String
-    Default: admin@lunchmate.com
+    Default: admin@whatsforlunch.com
 
   EnableAutomaticDeployment:
     Description: Enable automatic deployment to production (if false, requires manual approval)
@@ -399,17 +399,17 @@ Resources:
   SecretsManagerSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Description: !Sub "Environment variables for ${EnvironmentName} LunchMate application"
+      Description: !Sub "Environment variables for ${EnvironmentName} WhatsForLunch application"
       GenerateSecretString:
         SecretStringTemplate: '{}'
         GenerateStringKey: "PLACEHOLDER"
       Tags:
         - Key: Name
-          Value: !Sub "${EnvironmentName}-lunchmate-env-vars"
+          Value: !Sub "${EnvironmentName}-whatsforlunch-env-vars"
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # Networking Stack
   NetworkingStack:
@@ -427,11 +427,11 @@ Resources:
         PrivateSubnet2CIDR: !Ref PrivateSubnet2CIDR
       Tags:
         - Key: Name
-          Value: !Sub "${EnvironmentName}-lunchmate-networking-stack"
+          Value: !Sub "${EnvironmentName}-whatsforlunch-networking-stack"
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # Database Stack
   DatabaseStack:
@@ -453,11 +453,11 @@ Resources:
         MonitoringInterval: !Ref MonitoringInterval
       Tags:
         - Key: Name
-          Value: !Sub "${EnvironmentName}-lunchmate-database-stack"
+          Value: !Sub "${EnvironmentName}-whatsforlunch-database-stack"
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # Backend Stack
   BackendStack:
@@ -469,8 +469,8 @@ Resources:
       TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/backend.yaml"
       Parameters:
         EnvironmentName: !Ref EnvironmentName
-        ApplicationName: LunchMate
-        EnvironmentNamePrefix: lunchmate
+        ApplicationName: WhatsForLunch
+        EnvironmentNamePrefix: whatsforlunch
         DomainName: !Ref DomainName
         SubDomainPrefix: !Ref SubDomainPrefix
         NodeJSVersion: !Ref NodeJSVersion
@@ -482,16 +482,16 @@ Resources:
         SecretsManagerARN: !Ref SecretsManagerSecret
         SSLCertificateARN: !Ref SSLCertificateARN
         ApiGatewayCertificateARN:
-          Fn::ImportValue: !Sub "${EnvironmentName}-LunchMate-ApiGatewayCertificateArn"
+          Fn::ImportValue: !Sub "${EnvironmentName}-WhatsForLunch-ApiGatewayCertificateArn"
         HostedZoneId:
-          Fn::ImportValue: !Sub "${EnvironmentName}-LunchMate-HostedZoneId"
+          Fn::ImportValue: !Sub "${EnvironmentName}-WhatsForLunch-HostedZoneId"
       Tags:
         - Key: Name
-          Value: !Sub "${EnvironmentName}-lunchmate-backend-stack"
+          Value: !Sub "${EnvironmentName}-whatsforlunch-backend-stack"
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # Frontend Stack
   FrontendStack:
@@ -505,16 +505,16 @@ Resources:
         SubDomainPrefix: !Ref SubDomainPrefix
         CreateRoute53Records: !Ref CreateRoute53Records
         HostedZoneId:
-          Fn::ImportValue: !Sub "${EnvironmentName}-LunchMate-HostedZoneId"
+          Fn::ImportValue: !Sub "${EnvironmentName}-WhatsForLunch-HostedZoneId"
         CertificateArn:
-          Fn::ImportValue: !Sub "${EnvironmentName}-LunchMate-CertificateArn"
+          Fn::ImportValue: !Sub "${EnvironmentName}-WhatsForLunch-CertificateArn"
       Tags:
         - Key: Name
-          Value: !Sub "${EnvironmentName}-lunchmate-frontend-stack"
+          Value: !Sub "${EnvironmentName}-whatsforlunch-frontend-stack"
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
 Outputs:
   # VPC Outputs

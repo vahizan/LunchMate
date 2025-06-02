@@ -58,43 +58,67 @@ on:
           - backend
 
 jobs:
-  test:
-    name: Test
+   test-frontend:
+    name: Test Frontend
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        component: [frontend, backend]
-        include:
-          - component: frontend
-            test_path: client/src
-            paths: '{client/**}'
-          - component: backend
-            test_path: server/lib/__tests__
-            paths: '{server/**,shared/**}'
+        component: [frontend]
+        version: [20]
+        test_path: client/src
+        paths: '{client/**}'
     if: |
-      github.event_name == 'pull_request' ||
-      github.event_name == 'push' ||
-      (github.event_name == 'workflow_dispatch' &&
-       (github.event.inputs.component == 'all' || github.event.inputs.component == '${{ matrix.component }}'))
+      github.event_name != 'workflow_dispatch' ||
+      github.event.inputs.component == 'all' ||
+      github.event.inputs.component == 'frontend'
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+       - name: Checkout code
+         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
+       - name: Setup Node.js
+         uses: actions/setup-node@v4
+         with:
+          node-version: '${{ matrix.version }}'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+       - name: Install dependencies
+         run: npm ci
 
-      - name: Run tests
-        run: npm test -- ${{ matrix.test_path }}
+       - name: Run tests
+         run: npm test -- ${{ matrix.test_path }}
 
-  build:
+   test-backend:
+    name: Test Backend
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [backend]
+        version: [20]
+        test_path: server/lib/__tests__
+        paths: '{server/**,shared/**}'
+    if: |
+      github.event_name != 'workflow_dispatch' ||
+      github.event.inputs.component == 'all' ||
+      github.event.inputs.component == 'backend'
+    steps:
+       - name: Checkout code
+         uses: actions/checkout@v4
+
+       - name: Setup Node.js
+         uses: actions/setup-node@v4
+         with:
+          node-version: '${{ matrix.version }}'
+          cache: 'npm'
+
+       - name: Install dependencies
+         run: npm ci
+
+       - name: Run tests
+         run: npm test -- ${{ matrix.test_path }}
+
+   build:
     name: Build ${{ matrix.component }}
-    needs: test
+    needs: [test-frontend, test-backend]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -127,7 +151,7 @@ jobs:
         if: matrix.component == 'frontend'
         run: npm run build
         env:
-          NODE_ENV: production
+          NODE_ENV: prod
 
       - name: Build backend
         if: matrix.component == 'backend'
@@ -140,7 +164,7 @@ jobs:
           cd eb-bundle
           zip -r ../eb-bundle.zip .
         env:
-          NODE_ENV: production
+          NODE_ENV: prod
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -149,7 +173,7 @@ jobs:
           path: ${{ matrix.artifact_path }}
           retention-days: 7
 
-  deploy-cloudformation:
+   deploy-cloudformation:
     name: Deploy CloudFormation Stack
     needs: build
     if: |
@@ -253,12 +277,10 @@ jobs:
             fi
           fi
 
-  deploy-qa:
-    name: Deploy to QA
+   deploy-qa:
+    name: Deploy to QA (skipped unless the app grows)
     needs: build
-    if: |
-      (github.event_name == 'push') || 
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'qa')
+    if: false
     runs-on: ubuntu-latest
     environment: qa
     strategy:
@@ -270,7 +292,7 @@ jobs:
             artifact_path: dist/client
           - component: backend
             artifact_name: backend-build
-            artifact_path: ./
+            artifact_path: eb-bundle.zip
     steps:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -329,7 +351,7 @@ jobs:
           deployment_package: eb-bundle.zip
           wait_for_environment_recovery: 300
 
-  approve-prod-deployment:
+   approve-prod-deployment:
     name: Approve Production Deployment
     needs: build
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod'
@@ -340,11 +362,14 @@ jobs:
       - name: Approval notification
         run: echo "Production deployment has been approved"
 
-  deploy-prod:
+   deploy-prod:
     name: Deploy to Production
-    needs: approve-prod-deployment
+    needs:
+      - build 
+      - approve-prod-deployment
     runs-on: ubuntu-latest
     environment: prod
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod'
     strategy:
       matrix:
         component: [frontend, backend]
@@ -354,7 +379,7 @@ jobs:
             artifact_path: dist/client
           - component: backend
             artifact_name: backend-build
-            artifact_path: ./
+            artifact_path: eb-bundle.zip
     steps:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
