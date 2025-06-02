@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'LunchMate Application - Networking Infrastructure (Nested Stack)'
+Description: 'WhatsForLunch Application - Networking Infrastructure (Nested Stack)'
 
 Parameters:
   EnvironmentName:
@@ -10,6 +10,16 @@ Parameters:
       - qa
       - prod
     ConstraintDescription: must be either qa or prod
+    
+  DomainName:
+    Description: Main domain name for the application (e.g., whatsforlunch.to)
+    Type: String
+    Default: whatsforlunch.to
+    
+  SubDomainPrefix:
+    Description: Subdomain prefix for non-production environments (e.g., qa)
+    Type: String
+    Default: qa
 
   VpcCIDR:
     Description: CIDR block for the VPC
@@ -36,7 +46,67 @@ Parameters:
     Type: String
     Default: 10.0.3.0/24
 
+Conditions:
+  IsProduction: !Equals [!Ref EnvironmentName, 'prod']
+
 Resources:
+  # Route 53 Hosted Zone
+  HostedZone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref DomainName
+      HostedZoneConfig:
+        Comment: !Sub "Hosted zone for ${DomainName} (${EnvironmentName} environment)"
+      Tags:
+        - Key: Name
+          Value: !Sub "${DomainName}-hosted-zone"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: WhatsForLunch
+
+  # ACM Certificate for main domain and wildcard subdomains
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      SubjectAlternativeNames:
+        - !Sub "*.${DomainName}"
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref DomainName
+          HostedZoneId: !Ref HostedZone
+        - DomainName: !Sub "*.${DomainName}"
+          HostedZoneId: !Ref HostedZone
+      Tags:
+        - Key: Name
+          Value: !Sub "${DomainName}-certificate"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: WhatsForLunch
+
+  # API Gateway Certificate (us-east-1 specific for API Gateway custom domains)
+  ApiGatewayCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Sub "api.${DomainName}"
+      SubjectAlternativeNames:
+        - !If [IsProduction, !Ref AWS::NoValue, !Sub "api.${SubDomainPrefix}.${DomainName}"]
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Sub "api.${DomainName}"
+          HostedZoneId: !Ref HostedZone
+        - DomainName: !If [IsProduction, !Ref AWS::NoValue, !Sub "api.${SubDomainPrefix}.${DomainName}"]
+          HostedZoneId: !Ref HostedZone
+      Tags:
+        - Key: Name
+          Value: !Sub "api.${DomainName}-certificate"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: WhatsForLunch
+
   # VPC
   VPC:
     Type: AWS::EC2::VPC
@@ -46,11 +116,11 @@ Resources:
       EnableDnsHostnames: true
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-vpc
+          Value: !Sub ${EnvironmentName}-whatsforlunch-vpc
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # Internet Gateway
   InternetGateway:
@@ -58,11 +128,11 @@ Resources:
     Properties:
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-igw
+          Value: !Sub ${EnvironmentName}-whatsforlunch-igw
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # Attach Internet Gateway to VPC
   InternetGatewayAttachment:
@@ -81,11 +151,11 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-public-subnet-1
+          Value: !Sub ${EnvironmentName}-whatsforlunch-public-subnet-1
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
         - Key: Type
           Value: Public
 
@@ -98,11 +168,11 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-public-subnet-2
+          Value: !Sub ${EnvironmentName}-whatsforlunch-public-subnet-2
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
         - Key: Type
           Value: Public
 
@@ -116,11 +186,11 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-private-subnet-1
+          Value: !Sub ${EnvironmentName}-whatsforlunch-private-subnet-1
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
         - Key: Type
           Value: Private
 
@@ -133,11 +203,11 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-private-subnet-2
+          Value: !Sub ${EnvironmentName}-whatsforlunch-private-subnet-2
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
         - Key: Type
           Value: Private
 
@@ -149,11 +219,11 @@ Resources:
       Domain: vpc
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-nat-eip
+          Value: !Sub ${EnvironmentName}-whatsforlunch-nat-eip
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # NAT Gateway
   NatGateway:
@@ -163,11 +233,11 @@ Resources:
       SubnetId: !Ref PublicSubnet1
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-nat-gateway
+          Value: !Sub ${EnvironmentName}-whatsforlunch-nat-gateway
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # Public Route Table
   PublicRouteTable:
@@ -176,11 +246,11 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-public-routes
+          Value: !Sub ${EnvironmentName}-whatsforlunch-public-routes
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
         - Key: Type
           Value: Public
 
@@ -214,11 +284,11 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-private-routes
+          Value: !Sub ${EnvironmentName}-whatsforlunch-private-routes
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
         - Key: Type
           Value: Private
 
@@ -264,11 +334,11 @@ Resources:
           Description: Allow HTTPS from anywhere
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-alb-sg
+          Value: !Sub ${EnvironmentName}-whatsforlunch-alb-sg
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # EC2 Security Group
   EC2SecurityGroup:
@@ -289,11 +359,11 @@ Resources:
           Description: Allow HTTPS from ALB
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-ec2-sg
+          Value: !Sub ${EnvironmentName}-whatsforlunch-ec2-sg
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # RDS Security Group
   RDSSecurityGroup:
@@ -309,75 +379,101 @@ Resources:
           Description: Allow PostgreSQL from EC2 instances
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-rds-sg
+          Value: !Sub ${EnvironmentName}-whatsforlunch-rds-sg
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
 Outputs:
+  # Route53 and ACM Outputs
+  HostedZoneId:
+    Description: Route53 Hosted Zone ID
+    Value: !Ref HostedZone
+    Export:
+      Name: !Sub ${EnvironmentName}-WhatsForLunch-HostedZoneId
+
+  CertificateArn:
+    Description: ACM Certificate ARN for CloudFront
+    Value: !Ref Certificate
+    Export:
+      Name: !Sub ${EnvironmentName}-WhatsForLunch-CertificateArn
+
+  ApiGatewayCertificateArn:
+    Description: ACM Certificate ARN for API Gateway
+    Value: !Ref ApiGatewayCertificate
+    Export:
+      Name: !Sub ${EnvironmentName}-WhatsForLunch-ApiGatewayCertificateArn
+
+  DomainNameOutput:
+    Description: Domain name
+    Value: !Ref DomainName
+    Export:
+      Name: !Sub ${EnvironmentName}-WhatsForLunch-DomainName
+
+  # VPC Outputs
   VPC:
     Description: VPC ID
     Value: !Ref VPC
     Export:
-      Name: !Sub ${EnvironmentName}-LunchMate-VPC
+      Name: !Sub ${EnvironmentName}-WhatsForLunch-VPC
 
   PublicSubnet1:
     Description: Public Subnet 1 ID
     Value: !Ref PublicSubnet1
     Export:
-      Name: !Sub ${EnvironmentName}-LunchMate-PublicSubnet1
+      Name: !Sub ${EnvironmentName}-WhatsForLunch-PublicSubnet1
 
   PublicSubnet2:
     Description: Public Subnet 2 ID
     Value: !Ref PublicSubnet2
     Export:
-      Name: !Sub ${EnvironmentName}-LunchMate-PublicSubnet2
+      Name: !Sub ${EnvironmentName}-WhatsForLunch-PublicSubnet2
 
   PrivateSubnet1:
     Description: Private Subnet 1 ID
     Value: !Ref PrivateSubnet1
     Export:
-      Name: !Sub ${EnvironmentName}-LunchMate-PrivateSubnet1
+      Name: !Sub ${EnvironmentName}-WhatsForLunch-PrivateSubnet1
 
   PrivateSubnet2:
     Description: Private Subnet 2 ID
     Value: !Ref PrivateSubnet2
     Export:
-      Name: !Sub ${EnvironmentName}-LunchMate-PrivateSubnet2
+      Name: !Sub ${EnvironmentName}-WhatsForLunch-PrivateSubnet2
 
   ALBSecurityGroup:
     Description: Security Group ID for Application Load Balancer
     Value: !Ref ALBSecurityGroup
     Export:
-      Name: !Sub ${EnvironmentName}-LunchMate-ALBSecurityGroup
+      Name: !Sub ${EnvironmentName}-WhatsForLunch-ALBSecurityGroup
 
   EC2SecurityGroup:
     Description: Security Group ID for EC2 instances
     Value: !Ref EC2SecurityGroup
     Export:
-      Name: !Sub ${EnvironmentName}-LunchMate-EC2SecurityGroup
+      Name: !Sub ${EnvironmentName}-WhatsForLunch-EC2SecurityGroup
 
   RDSSecurityGroup:
     Description: Security Group ID for RDS instances
     Value: !Ref RDSSecurityGroup
     Export:
-      Name: !Sub ${EnvironmentName}-LunchMate-RDSSecurityGroup
+      Name: !Sub ${EnvironmentName}-WhatsForLunch-RDSSecurityGroup
 
   PublicSubnets:
     Description: List of Public Subnet IDs
     Value: !Join [ ",", [ !Ref PublicSubnet1, !Ref PublicSubnet2 ] ]
     Export:
-      Name: !Sub ${EnvironmentName}-LunchMate-PublicSubnets
+      Name: !Sub ${EnvironmentName}-WhatsForLunch-PublicSubnets
 
   PrivateSubnets:
     Description: List of Private Subnet IDs
     Value: !Join [ ",", [ !Ref PrivateSubnet1, !Ref PrivateSubnet2 ] ]
     Export:
-      Name: !Sub ${EnvironmentName}-LunchMate-PrivateSubnets
+      Name: !Sub ${EnvironmentName}-WhatsForLunch-PrivateSubnets
 
   VpcCidr:
     Description: VPC CIDR Block
     Value: !Ref VpcCIDR
     Export:
-      Name: !Sub ${EnvironmentName}-LunchMate-VpcCidr
+      Name: !Sub ${EnvironmentName}-WhatsForLunch-VpcCidr

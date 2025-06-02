@@ -1,89 +1,72 @@
-# GitHub Actions Workflows for LunchMate
+# LunchMate CI/CD Workflow
 
-This directory contains GitHub Actions workflow files that replace the AWS CloudFormation CI/CD setup previously defined in `cicd.yaml`.
+This directory contains the CI/CD workflow configuration for the LunchMate application. The workflow is designed to automate testing, building, and deploying both frontend and backend components to multiple environments.
 
-## Workflow Files
+## Workflow Overview
 
-### 1. Frontend Workflow (`frontend.yml`)
+The CI/CD pipeline is defined in a single unified workflow file (`ci-cd.yml`) that handles:
 
-This workflow handles the CI/CD pipeline for the frontend application:
+1. **Testing**: Runs tests for both frontend and backend components
+2. **Building**: Builds the application components and creates deployment artifacts
+3. **Infrastructure Deployment**: Uses CloudFormation templates to provision and update AWS resources
+4. **Application Deployment**: Deploys the application to the appropriate environment (QA or Production)
 
-- **Triggers**: Runs on pushes/PRs to the `main` branch that affect frontend code, or manual triggers
-- **Jobs**:
-  - Test: Runs frontend tests
-  - Build: Builds the frontend application
-  - Deploy to QA: Deploys to the QA environment automatically on pushes to main
-  - Approve Production Deployment: Manual approval step for production deployments
-  - Deploy to Production: Deploys to production after approval
+## Deployment Environments
 
-### 2. Backend Workflow (`backend.yml`)
+The workflow supports two deployment environments:
 
-This workflow handles the CI/CD pipeline for the backend application:
+- **QA Environment**: Automatically deployed on pushes to the main branch
+- **Production Environment**: Requires manual approval via GitHub environment protection rules
 
-- **Triggers**: Runs on pushes/PRs to the `main` branch that affect backend code, or manual triggers
-- **Jobs**:
-  - Test: Runs backend tests
-  - Build: Builds the backend application and creates an Elastic Beanstalk deployment package
-  - Deploy to QA: Deploys to the QA environment automatically on pushes to main
-  - Approve Production Deployment: Manual approval step for production deployments
-  - Deploy to Production: Deploys to production after approval
+## CloudFormation Infrastructure
 
-## Required GitHub Secrets
+The application infrastructure is managed using AWS CloudFormation with a nested template structure:
 
-You need to set up the following secrets in your GitHub repository:
+- `master.yaml`: Main template that orchestrates the entire stack
+- `frontend.yaml`: Frontend resources (S3, CloudFront, etc.)
+- `backend.yaml`: Backend resources (Elastic Beanstalk, etc.)
+- `networking.yaml`: Network infrastructure (VPC, subnets, etc.)
+- `database.yaml`: Database resources
 
-### For Both Workflows
+Environment-specific parameters are defined in:
+- `qa-parameters.json`: Parameters for the QA environment
+- `prod-parameters.json`: Parameters for the Production environment
 
-- `AWS_ACCESS_KEY_ID`: AWS access key with permissions for S3, CloudFront, and Elastic Beanstalk
-- `AWS_SECRET_ACCESS_KEY`: Corresponding AWS secret key
-- `AWS_REGION`: AWS region where your resources are located (e.g., `us-east-1`)
-- `SLACK_WEBHOOK_URL`: (Optional) Webhook URL for Slack notifications
+## Triggering Deployments
 
-### For Frontend Workflow
+The workflow can be triggered in several ways:
 
-- `S3_BUCKET_NAME`: Name of the S3 bucket for frontend deployment (different for QA and prod environments)
-- `CLOUDFRONT_DISTRIBUTION_ID`: ID of the CloudFront distribution (different for QA and prod environments)
+### Automatic Triggers
 
-### For Backend Workflow
+- **Push to main branch**: Automatically runs tests and deploys to QA
+- **Pull Request to main branch**: Runs tests only (no deployment)
 
-- `EB_APPLICATION_NAME`: Name of the Elastic Beanstalk application (different for QA and prod environments)
-- `EB_ENVIRONMENT_NAME`: Name of the Elastic Beanstalk environment (different for QA and prod environments)
+### Manual Triggers
 
-## Environment Setup
+Use the GitHub Actions workflow dispatch with the following options:
 
-You need to create the following environments in your GitHub repository settings:
+1. **Environment**:
+   - `qa`: Deploy to QA environment
+   - `prod`: Deploy to Production environment (requires approval)
 
-1. `qa`: For QA deployments
-2. `prod-approval`: For the manual approval step
-3. `prod`: For production deployments
+2. **Component**:
+   - `all`: Deploy both frontend and backend components
+   - `frontend`: Deploy only the frontend component
+   - `backend`: Deploy only the backend component
 
-For the `prod-approval` environment, enable the "Required reviewers" protection rule and add the appropriate reviewers who can approve production deployments.
+## Example Usage
 
-## How to Use
-
-### Automatic Deployments
-
-- Pushing to the `main` branch will automatically trigger the workflows if the relevant files are changed
-- QA deployments happen automatically after successful builds
-- Production deployments require manual approval
-
-### Manual Deployments
-
-1. Go to the "Actions" tab in your GitHub repository
-2. Select the workflow you want to run (Frontend or Backend)
+To manually trigger a deployment to QA for the frontend only:
+1. Go to the Actions tab in GitHub
+2. Select the "LunchMate CI/CD" workflow
 3. Click "Run workflow"
-4. Select the branch (usually `main`)
-5. Choose the environment (`qa` or `prod`)
-6. Click "Run workflow"
-7. If deploying to production, approve the deployment when prompted
+4. Select "qa" for environment and "frontend" for component
+5. Click "Run workflow"
 
-## Migrating from CloudFormation
+## Workflow Maintenance
 
-This GitHub Actions setup replaces the AWS CloudFormation CI/CD infrastructure previously defined in `cicd.yaml`. The key differences are:
+When making changes to the workflow:
 
-1. GitHub Actions manages the CI/CD pipeline instead of AWS CodePipeline
-2. Workflows are defined in YAML files in the `.github/workflows` directory
-3. Secrets are stored in GitHub instead of AWS Secrets Manager
-4. Manual approvals are handled through GitHub Environments instead of AWS CodePipeline approval actions
-
-The actual deployment targets (S3/CloudFront for frontend, Elastic Beanstalk for backend) remain the same.
+1. Test changes in the QA environment first
+2. Ensure all required secrets are configured in the GitHub repository settings
+3. Update this documentation if the workflow behavior changes

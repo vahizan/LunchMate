@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'LunchMate Application - Frontend Infrastructure (Nested Stack)'
+Description: 'WhatsForLunch Application - Frontend Infrastructure (Nested Stack)'
 
 Parameters:
   EnvironmentName:
@@ -12,9 +12,9 @@ Parameters:
     ConstraintDescription: must be either qa or prod
 
   DomainName:
-    Description: Main domain name for the application (e.g., lunchmate.com)
+    Description: Main domain name for the application (e.g., whatsforlunch.to)
     Type: String
-    Default: lunchmate.com
+    Default: whatsforlunch.to
 
   SubDomainPrefix:
     Description: Subdomain prefix for non-production environments (e.g., qa)
@@ -32,10 +32,18 @@ Parameters:
   HostedZoneId:
     Description: Route53 Hosted Zone ID for the domain
     Type: String
+    Default: ''
+    
+  CertificateArn:
+    Description: ARN of the ACM certificate for CloudFront
+    Type: String
+    Default: ''
 
 Conditions:
   IsProduction: !Equals [!Ref EnvironmentName, 'prod']
   CreateDNSRecords: !Equals [!Ref CreateRoute53Records, 'true']
+  IsImportedCertificate: !Not [!Equals [!Ref CertificateArn, '']]
+  IsImportedHostedZone: !Not [!Equals [!Ref HostedZoneId, '']]
 
 Resources:
   # S3 Bucket for Website Hosting
@@ -43,10 +51,10 @@ Resources:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
-      BucketName: !If 
+      BucketName: !If
         - IsProduction
         - !Sub ${DomainName}-website
-        - !Sub ${SubDomainPrefix}.${DomainName}-website
+        - !Sub ${SubDomainPrefix}-${DomainName}-website
       AccessControl: Private
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
@@ -63,19 +71,19 @@ Resources:
         - Key: Name
           Value: !If 
             - IsProduction
-            - !Sub ${EnvironmentName}-lunchmate-website-bucket
-            - !Sub ${EnvironmentName}-lunchmate-website-bucket
+            - !Sub ${EnvironmentName}-whatsforlunch-website-bucket
+            - !Sub ${EnvironmentName}-whatsforlunch-website-bucket
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # CloudFront Origin Access Identity
   CloudFrontOriginAccessIdentity:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
     Properties:
       CloudFrontOriginAccessIdentityConfig:
-        Comment: !Sub "OAI for ${EnvironmentName} LunchMate Website"
+        Comment: !Sub "OAI for ${EnvironmentName} WhatsForLunch Website"
 
   # S3 Bucket Policy for CloudFront Access
   WebsiteBucketPolicy:
@@ -91,38 +99,15 @@ Resources:
             Action: 's3:GetObject'
             Resource: !Sub '${WebsiteBucket.Arn}/*'
 
-  # ACM Certificate for HTTPS
-  Certificate:
-    Type: AWS::CertificateManager::Certificate
-    Properties:
-      DomainName: !If 
-        - IsProduction
-        - !Ref DomainName
-        - !Sub "${SubDomainPrefix}.${DomainName}"
-      SubjectAlternativeNames:
-        - !If 
-          - IsProduction
-          - !Sub "www.${DomainName}"
-          - !Ref AWS::NoValue
-      ValidationMethod: DNS
-      Tags:
-        - Key: Name
-          Value: !If 
-            - IsProduction
-            - !Sub "${DomainName}-certificate"
-            - !Sub "${SubDomainPrefix}.${DomainName}-certificate"
-        - Key: Environment
-          Value: !Ref EnvironmentName
-        - Key: Application
-          Value: LunchMate
+  # Use imported certificate from networking stack
 
   # CloudFront Cache Policy
   CloudFrontCachePolicy:
     Type: AWS::CloudFront::CachePolicy
     Properties:
       CachePolicyConfig:
-        Name: !Sub "${EnvironmentName}-LunchMate-CachePolicy"
-        Comment: "Optimized cache policy for LunchMate frontend assets"
+        Name: !Sub "${EnvironmentName}-WhatsForLunch-CachePolicy"
+        Comment: "Optimized cache policy for WhatsForLunch frontend assets"
         DefaultTTL: 604800  # 7 days in seconds
         MaxTTL: 31536000    # 1 year in seconds
         MinTTL: 3600        # 1 hour in seconds
@@ -173,7 +158,16 @@ Resources:
           Compress: true
         PriceClass: PriceClass_100
         ViewerCertificate:
-          AcmCertificateArn: !Ref Certificate
+          AcmCertificateArn: !If
+            - IsProduction
+            - !If
+              - IsImportedCertificate
+              - !Ref CertificateArn
+              - Fn::ImportValue: !Sub "${EnvironmentName}-WhatsForLunch-CertificateArn"
+            - !If
+              - IsImportedCertificate
+              - !Ref CertificateArn
+              - Fn::ImportValue: !Sub "${EnvironmentName}-WhatsForLunch-CertificateArn"
           MinimumProtocolVersion: TLSv1.2_2021
           SslSupportMethod: sni-only
         CustomErrorResponses:
@@ -194,14 +188,17 @@ Resources:
           - Key: Environment
             Value: !Ref EnvironmentName
           - Key: Application
-            Value: LunchMate
+            Value: WhatsForLunch
 
   # Route53 DNS Records
   WebsiteDNSRecord:
     Type: AWS::Route53::RecordSet
     Condition: CreateDNSRecords
     Properties:
-      HostedZoneId: !Ref HostedZoneId
+      HostedZoneId: !If
+        - IsImportedHostedZone
+        - !Ref HostedZoneId
+        - Fn::ImportValue: !Sub "${EnvironmentName}-WhatsForLunch-HostedZoneId"
       Name: !If 
         - IsProduction
         - !Ref DomainName
@@ -217,7 +214,10 @@ Resources:
     Type: AWS::Route53::RecordSet
     Condition: !And [CreateDNSRecords, IsProduction]
     Properties:
-      HostedZoneId: !Ref HostedZoneId
+      HostedZoneId: !If
+        - IsImportedHostedZone
+        - !Ref HostedZoneId
+        - Fn::ImportValue: !Sub "${EnvironmentName}-WhatsForLunch-HostedZoneId"
       Name: !Sub "www.${DomainName}"
       Type: A
       AliasTarget:
@@ -230,25 +230,25 @@ Outputs:
     Description: Name of the S3 bucket for website hosting
     Value: !Ref WebsiteBucket
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-WebsiteBucketName"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-WebsiteBucketName"
 
   WebsiteBucketArn:
     Description: ARN of the S3 bucket for website hosting
     Value: !GetAtt WebsiteBucket.Arn
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-WebsiteBucketArn"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-WebsiteBucketArn"
 
   CloudFrontDistributionId:
     Description: ID of the CloudFront distribution
     Value: !Ref CloudFrontDistribution
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-CloudFrontDistributionId"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-CloudFrontDistributionId"
 
   CloudFrontDomainName:
     Description: Domain name of the CloudFront distribution
     Value: !GetAtt CloudFrontDistribution.DomainName
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-CloudFrontDomainName"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-CloudFrontDomainName"
 
   WebsiteURL:
     Description: URL of the website
@@ -257,10 +257,10 @@ Outputs:
       - !Sub "https://${DomainName}"
       - !Sub "https://${SubDomainPrefix}.${DomainName}"
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-WebsiteURL"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-WebsiteURL"
 
   CloudFrontOriginAccessIdentityId:
     Description: ID of the CloudFront Origin Access Identity
     Value: !Ref CloudFrontOriginAccessIdentity
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-CloudFrontOAIId"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-CloudFrontOAIId"

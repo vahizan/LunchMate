@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'LunchMate Application - Database Infrastructure (Nested Stack)'
+Description: 'WhatsForLunch Application - Database Infrastructure (Nested Stack)'
 
 Parameters:
   EnvironmentName:
@@ -25,7 +25,7 @@ Parameters:
   DBName:
     Description: Database name
     Type: String
-    Default: lunchmate
+    Default: whatsforlunch
     MinLength: 1
     MaxLength: 64
     AllowedPattern: '[a-zA-Z][a-zA-Z0-9_]*'
@@ -34,7 +34,7 @@ Parameters:
   DBUsername:
     Description: Database admin username
     Type: String
-    Default: lunchmate_admin
+    Default: whatsforlunch_admin
     MinLength: 1
     MaxLength: 16
     AllowedPattern: '[a-zA-Z][a-zA-Z0-9_]*'
@@ -131,33 +131,33 @@ Resources:
         - 'arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole'
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-rds-monitoring-role
+          Value: !Sub ${EnvironmentName}-whatsforlunch-rds-monitoring-role
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # Database Subnet Group
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: !Sub "Subnet group for ${EnvironmentName} LunchMate database"
+      DBSubnetGroupDescription: !Sub "Subnet group for ${EnvironmentName} WhatsForLunch database"
       SubnetIds:
-        - Fn::ImportValue: !Sub ${EnvironmentName}-LunchMate-PrivateSubnet1
-        - Fn::ImportValue: !Sub ${EnvironmentName}-LunchMate-PrivateSubnet2
+        - Fn::ImportValue: !Sub ${EnvironmentName}-WhatsForLunch-PrivateSubnet1
+        - Fn::ImportValue: !Sub ${EnvironmentName}-WhatsForLunch-PrivateSubnet2
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-db-subnet-group
+          Value: !Sub ${EnvironmentName}-whatsforlunch-db-subnet-group
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # Database Parameter Group
   DBParameterGroup:
     Type: AWS::RDS::DBParameterGroup
     Properties:
-      Description: !Sub "Parameter group for ${EnvironmentName} LunchMate PostgreSQL database"
+      Description: !Sub "Parameter group for ${EnvironmentName} WhatsForLunch PostgreSQL database"
       Family: !Sub "postgres${!Split['.', !Ref DBEngineVersion][0]}"
       Parameters:
         shared_buffers: !If [IsProduction, '1GB', '256MB']
@@ -176,17 +176,17 @@ Resources:
         track_counts: 'on'
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-db-parameter-group
+          Value: !Sub ${EnvironmentName}-whatsforlunch-db-parameter-group
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # Database Password Secret
   DBPasswordSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Description: !Sub "Password for ${EnvironmentName} LunchMate database"
+      Description: !Sub "Password for ${EnvironmentName} WhatsForLunch database"
       GenerateSecretString:
         SecretStringTemplate: !Sub '{"username": "${DBUsername}"}'
         GenerateStringKey: "password"
@@ -194,11 +194,11 @@ Resources:
         ExcludeCharacters: '"@/\'
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-db-password
+          Value: !Sub ${EnvironmentName}-whatsforlunch-db-password
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # Database Instance
   DBInstance:
@@ -219,7 +219,7 @@ Resources:
       MasterUserPassword: !Join ['', ['{{resolve:secretsmanager:', !Ref DBPasswordSecret, ':SecretString:password}}' ]]
       DBSubnetGroupName: !Ref DBSubnetGroup
       VPCSecurityGroups:
-        - Fn::ImportValue: !Sub ${EnvironmentName}-LunchMate-RDSSecurityGroup
+        - Fn::ImportValue: !Sub ${EnvironmentName}-WhatsForLunch-RDSSecurityGroup
       DBParameterGroupName: !Ref DBParameterGroup
       BackupRetentionPeriod: !Ref DBBackupRetentionPeriod
       PreferredBackupWindow: '03:00-04:00'
@@ -232,31 +232,31 @@ Resources:
       CopyTagsToSnapshot: true
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-db
+          Value: !Sub ${EnvironmentName}-whatsforlunch-db
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # Database Connection Information Secret
   DBConnectionSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Description: !Sub "Connection information for ${EnvironmentName} LunchMate database"
+      Description: !Sub "Connection information for ${EnvironmentName} WhatsForLunch database"
       SecretString: !Sub '{"engine":"postgres","host":"${DBInstance.Endpoint.Address}","port":"${DBInstance.Endpoint.Port}","dbname":"${DBName}","username":"${DBUsername}","password":"{{resolve:secretsmanager:${DBPasswordSecret}:SecretString:password}}"}'
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-db-connection
+          Value: !Sub ${EnvironmentName}-whatsforlunch-db-connection
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # CloudWatch Alarms
   HighCPUAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmDescription: !Sub "Alarm if CPU exceeds 80% for 5 minutes on ${EnvironmentName} LunchMate database"
+      AlarmDescription: !Sub "Alarm if CPU exceeds 80% for 5 minutes on ${EnvironmentName} WhatsForLunch database"
       Namespace: AWS/RDS
       MetricName: CPUUtilization
       Dimensions:
@@ -271,16 +271,16 @@ Resources:
         - !Ref DBAlarmTopic
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-db-high-cpu-alarm
+          Value: !Sub ${EnvironmentName}-whatsforlunch-db-high-cpu-alarm
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   LowFreeStorageSpaceAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmDescription: !Sub "Alarm if free storage space is less than 20% for 5 minutes on ${EnvironmentName} LunchMate database"
+      AlarmDescription: !Sub "Alarm if free storage space is less than 20% for 5 minutes on ${EnvironmentName} WhatsForLunch database"
       Namespace: AWS/RDS
       MetricName: FreeStorageSpace
       Dimensions:
@@ -295,16 +295,16 @@ Resources:
         - !Ref DBAlarmTopic
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-db-low-storage-alarm
+          Value: !Sub ${EnvironmentName}-whatsforlunch-db-low-storage-alarm
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   HighDatabaseConnectionsAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmDescription: !Sub "Alarm if database connections exceed 80% of max for 5 minutes on ${EnvironmentName} LunchMate database"
+      AlarmDescription: !Sub "Alarm if database connections exceed 80% of max for 5 minutes on ${EnvironmentName} WhatsForLunch database"
       Namespace: AWS/RDS
       MetricName: DatabaseConnections
       Dimensions:
@@ -319,65 +319,65 @@ Resources:
         - !Ref DBAlarmTopic
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-db-connections-alarm
+          Value: !Sub ${EnvironmentName}-whatsforlunch-db-connections-alarm
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # SNS Topic for Database Alarms
   DBAlarmTopic:
     Type: AWS::SNS::Topic
     Properties:
-      DisplayName: !Sub "${EnvironmentName}-LunchMate-DBAlarms"
-      TopicName: !Sub "${EnvironmentName}-LunchMate-DBAlarms"
+      DisplayName: !Sub "${EnvironmentName}-WhatsForLunch-DBAlarms"
+      TopicName: !Sub "${EnvironmentName}-WhatsForLunch-DBAlarms"
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-db-alarm-topic
+          Value: !Sub ${EnvironmentName}-whatsforlunch-db-alarm-topic
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
 Outputs:
   DBInstanceIdentifier:
     Description: Database instance identifier
     Value: !Ref DBInstance
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-DBInstanceIdentifier"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-DBInstanceIdentifier"
 
   DBEndpointAddress:
     Description: Database endpoint address
     Value: !GetAtt DBInstance.Endpoint.Address
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-DBEndpointAddress"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-DBEndpointAddress"
 
   DBEndpointPort:
     Description: Database endpoint port
     Value: !GetAtt DBInstance.Endpoint.Port
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-DBEndpointPort"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-DBEndpointPort"
 
   DBName:
     Description: Database name
     Value: !Ref DBName
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-DBName"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-DBName"
 
   DBUsername:
     Description: Database username
     Value: !Ref DBUsername
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-DBUsername"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-DBUsername"
 
   DBPasswordSecretARN:
     Description: ARN of the secret containing the database password
     Value: !Ref DBPasswordSecret
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-DBPasswordSecretARN"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-DBPasswordSecretARN"
 
   DBConnectionSecretARN:
     Description: ARN of the secret containing the database connection information
     Value: !Ref DBConnectionSecret
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-DBConnectionSecretARN"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-DBConnectionSecretARN"

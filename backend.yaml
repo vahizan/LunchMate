@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'LunchMate Application - Backend Infrastructure (Nested Stack)'
+Description: 'WhatsForLunch Application - Backend Infrastructure (Nested Stack)'
 
 Parameters:
   EnvironmentName:
@@ -14,12 +14,12 @@ Parameters:
   ApplicationName:
     Description: Name of the Elastic Beanstalk application
     Type: String
-    Default: LunchMate
+    Default: WhatsForLunch
 
   EnvironmentNamePrefix:
     Description: Prefix for the Elastic Beanstalk environment name
     Type: String
-    Default: lunchmate
+    Default: whatsforlunch
 
   NodeJSVersion:
     Description: Node.js version for the Elastic Beanstalk platform
@@ -76,10 +76,32 @@ Parameters:
     Description: ARN of the SSL certificate for the load balancer
     Type: String
     Default: ''
+    
+  DomainName:
+    Description: Main domain name for the application (e.g., whatsforlunch.to)
+    Type: String
+    Default: whatsforlunch.to
+    
+  SubDomainPrefix:
+    Description: Subdomain prefix for non-production environments (e.g., qa)
+    Type: String
+    Default: qa
+    
+  ApiGatewayCertificateARN:
+    Description: ARN of the ACM certificate for API Gateway custom domain
+    Type: String
+    Default: ''
+    
+  HostedZoneId:
+    Description: Route53 Hosted Zone ID for the domain
+    Type: String
+    Default: ''
 
 Conditions:
   IsProduction: !Equals [!Ref EnvironmentName, 'prod']
   HasSSLCertificate: !Not [!Equals [!Ref SSLCertificateARN, '']]
+  IsImportedApiCertificate: !Not [!Equals [!Ref ApiGatewayCertificateARN, '']]
+  IsImportedHostedZone: !Not [!Equals [!Ref HostedZoneId, '']]
 
 Resources:
   # IAM Role for Elastic Beanstalk Service
@@ -98,11 +120,11 @@ Resources:
         - 'arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkEnhancedHealth'
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-eb-service-role
+          Value: !Sub ${EnvironmentName}-whatsforlunch-eb-service-role
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # IAM Role for EC2 Instances
   EC2Role:
@@ -122,17 +144,17 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-eb-ec2-role
+          Value: !Sub ${EnvironmentName}-whatsforlunch-eb-ec2-role
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # IAM Policy for Secrets Manager Access
   SecretsManagerPolicy:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: !Sub ${EnvironmentName}-lunchmate-secrets-manager-policy
+      PolicyName: !Sub ${EnvironmentName}-whatsforlunch-secrets-manager-policy
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -156,14 +178,14 @@ Resources:
     Type: AWS::ElasticBeanstalk::Application
     Properties:
       ApplicationName: !Sub ${EnvironmentNamePrefix}-${EnvironmentName}
-      Description: !Sub "LunchMate ${EnvironmentName} Backend Application"
+      Description: !Sub "WhatsForLunch ${EnvironmentName} Backend Application"
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-application
+          Value: !Sub ${EnvironmentName}-whatsforlunch-application
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # Elastic Beanstalk Environment
   ElasticBeanstalkEnvironment:
@@ -171,7 +193,7 @@ Resources:
     Properties:
       ApplicationName: !Ref ElasticBeanstalkApplication
       EnvironmentName: !Sub ${EnvironmentNamePrefix}-${EnvironmentName}
-      Description: !Sub "LunchMate ${EnvironmentName} Backend Environment"
+      Description: !Sub "WhatsForLunch ${EnvironmentName} Backend Environment"
       SolutionStackName: !Sub "64bit Amazon Linux 2023 v6.0.2 running Node.js ${NodeJSVersion}"
       Tier:
         Name: WebServer
@@ -182,15 +204,15 @@ Resources:
         - Namespace: aws:ec2:vpc
           OptionName: VPCId
           Value: 
-            Fn::ImportValue: !Sub ${EnvironmentName}-LunchMate-VPC
+            Fn::ImportValue: !Sub ${EnvironmentName}-WhatsForLunch-VPC
         - Namespace: aws:ec2:vpc
           OptionName: Subnets
           Value: 
-            Fn::ImportValue: !Sub ${EnvironmentName}-LunchMate-PrivateSubnets
+            Fn::ImportValue: !Sub ${EnvironmentName}-WhatsForLunch-PrivateSubnets
         - Namespace: aws:ec2:vpc
           OptionName: ELBSubnets
           Value: 
-            Fn::ImportValue: !Sub ${EnvironmentName}-LunchMate-PublicSubnets
+            Fn::ImportValue: !Sub ${EnvironmentName}-WhatsForLunch-PublicSubnets
         - Namespace: aws:ec2:vpc
           OptionName: AssociatePublicIpAddress
           Value: false
@@ -205,11 +227,11 @@ Resources:
         - Namespace: aws:elbv2:loadbalancer
           OptionName: SecurityGroups
           Value: 
-            Fn::ImportValue: !Sub ${EnvironmentName}-LunchMate-ALBSecurityGroup
+            Fn::ImportValue: !Sub ${EnvironmentName}-WhatsForLunch-ALBSecurityGroup
         - Namespace: aws:elbv2:loadbalancer
           OptionName: ManagedSecurityGroup
           Value: 
-            Fn::ImportValue: !Sub ${EnvironmentName}-LunchMate-ALBSecurityGroup
+            Fn::ImportValue: !Sub ${EnvironmentName}-WhatsForLunch-ALBSecurityGroup
         - Namespace: aws:elbv2:listener:default
           OptionName: Protocol
           Value: HTTP
@@ -239,7 +261,7 @@ Resources:
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: SecurityGroups
           Value: 
-            Fn::ImportValue: !Sub ${EnvironmentName}-LunchMate-EC2SecurityGroup
+            Fn::ImportValue: !Sub ${EnvironmentName}-WhatsForLunch-EC2SecurityGroup
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: InstanceType
           Value: !Ref InstanceType
@@ -248,7 +270,7 @@ Resources:
           Value: true
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: EC2KeyName
-          Value: !If [IsProduction, 'lunchmate-prod-key', 'lunchmate-qa-key']
+          Value: !If [IsProduction, 'whatsforlunch-prod-key', 'whatsforlunch-qa-key']
 
         # Auto Scaling Configuration
         - Namespace: aws:autoscaling:asg
@@ -339,11 +361,11 @@ Resources:
 
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-environment
+          Value: !Sub ${EnvironmentName}-whatsforlunch-environment
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # Sample Application Version
   ApplicationVersionResource:
@@ -374,25 +396,25 @@ Resources:
         - !Ref HighCPUTopic
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-high-cpu-alarm
+          Value: !Sub ${EnvironmentName}-whatsforlunch-high-cpu-alarm
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # SNS Topic for High CPU Alarm
   HighCPUTopic:
     Type: AWS::SNS::Topic
     Properties:
-      DisplayName: !Sub "${EnvironmentName}-LunchMate-HighCPU"
-      TopicName: !Sub "${EnvironmentName}-LunchMate-HighCPU"
+      DisplayName: !Sub "${EnvironmentName}-WhatsForLunch-HighCPU"
+      TopicName: !Sub "${EnvironmentName}-WhatsForLunch-HighCPU"
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-high-cpu-topic
+          Value: !Sub ${EnvironmentName}-whatsforlunch-high-cpu-topic
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # 5XX Error Rate Alarm
   High5xxErrorAlarm:
@@ -413,25 +435,25 @@ Resources:
         - !Ref ErrorRateTopic
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-5xx-error-alarm
+          Value: !Sub ${EnvironmentName}-whatsforlunch-5xx-error-alarm
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # SNS Topic for Error Rate Alarm
   ErrorRateTopic:
     Type: AWS::SNS::Topic
     Properties:
-      DisplayName: !Sub "${EnvironmentName}-LunchMate-ErrorRate"
-      TopicName: !Sub "${EnvironmentName}-LunchMate-ErrorRate"
+      DisplayName: !Sub "${EnvironmentName}-WhatsForLunch-ErrorRate"
+      TopicName: !Sub "${EnvironmentName}-WhatsForLunch-ErrorRate"
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-error-rate-topic
+          Value: !Sub ${EnvironmentName}-whatsforlunch-error-rate-topic
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # Environment Health Alarm
   EnvironmentHealthAlarm:
@@ -452,83 +474,152 @@ Resources:
         - !Ref HealthTopic
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-health-alarm
+          Value: !Sub ${EnvironmentName}-whatsforlunch-health-alarm
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
 
   # SNS Topic for Health Alarm
   HealthTopic:
     Type: AWS::SNS::Topic
     Properties:
-      DisplayName: !Sub "${EnvironmentName}-LunchMate-Health"
-      TopicName: !Sub "${EnvironmentName}-LunchMate-Health"
+      DisplayName: !Sub "${EnvironmentName}-WhatsForLunch-Health"
+      TopicName: !Sub "${EnvironmentName}-WhatsForLunch-Health"
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-lunchmate-health-topic
+          Value: !Sub ${EnvironmentName}-whatsforlunch-health-topic
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: LunchMate
+          Value: WhatsForLunch
+          
+  # API Gateway Custom Domain
+  ApiGatewayDomainName:
+    Type: AWS::ApiGateway::DomainName
+    Properties:
+      DomainName: !If
+        - IsProduction
+        - !Sub "api.${DomainName}"
+        - !Sub "api.${SubDomainPrefix}.${DomainName}"
+      CertificateArn: !If
+        - IsImportedApiCertificate
+        - !Ref ApiGatewayCertificateARN
+        - Fn::ImportValue: !Sub "${EnvironmentName}-WhatsForLunch-ApiGatewayCertificateArn"
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      SecurityPolicy: TLS_1_2
+      Tags:
+        - Key: Name
+          Value: !If
+            - IsProduction
+            - !Sub "api.${DomainName}"
+            - !Sub "api.${SubDomainPrefix}.${DomainName}"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: WhatsForLunch
+          
+  # API Gateway Base Path Mapping
+  ApiGatewayBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    DependsOn: ElasticBeanstalkEnvironment
+    Properties:
+      DomainName: !Ref ApiGatewayDomainName
+      RestApiId: !GetAtt ElasticBeanstalkEnvironment.APIGatewayId
+      Stage: !If [IsProduction, 'prod', 'qa']
+      
+  # Route53 Record for API Gateway
+  ApiDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !If
+        - IsImportedHostedZone
+        - !Ref HostedZoneId
+        - Fn::ImportValue: !Sub "${EnvironmentName}-WhatsForLunch-HostedZoneId"
+      Name: !If
+        - IsProduction
+        - !Sub "api.${DomainName}"
+        - !Sub "api.${SubDomainPrefix}.${DomainName}"
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt ApiGatewayDomainName.RegionalDomainName
+        HostedZoneId: !GetAtt ApiGatewayDomainName.RegionalHostedZoneId
+        EvaluateTargetHealth: false
 
 Outputs:
   ElasticBeanstalkApplicationName:
     Description: Name of the Elastic Beanstalk application
     Value: !Ref ElasticBeanstalkApplication
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-EBApplicationName"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-EBApplicationName"
 
   ElasticBeanstalkEnvironmentName:
     Description: Name of the Elastic Beanstalk environment
     Value: !Ref ElasticBeanstalkEnvironment
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-EBEnvironmentName"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-EBEnvironmentName"
 
   ElasticBeanstalkEnvironmentId:
     Description: ID of the Elastic Beanstalk environment
     Value: !Ref ElasticBeanstalkEnvironment
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-EBEnvironmentId"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-EBEnvironmentId"
 
   ElasticBeanstalkEnvironmentURL:
     Description: URL of the Elastic Beanstalk environment
     Value: !GetAtt ElasticBeanstalkEnvironment.EndpointURL
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-EBEnvironmentURL"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-EBEnvironmentURL"
 
   ServiceRoleARN:
     Description: ARN of the Elastic Beanstalk service role
     Value: !GetAtt ServiceRole.Arn
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-EBServiceRoleARN"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-EBServiceRoleARN"
 
   EC2RoleARN:
     Description: ARN of the EC2 instance role
     Value: !GetAtt EC2Role.Arn
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-EBInstanceRoleARN"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-EBInstanceRoleARN"
 
   InstanceProfileARN:
     Description: ARN of the EC2 instance profile
     Value: !GetAtt InstanceProfile.Arn
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-EBInstanceProfileARN"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-EBInstanceProfileARN"
 
   HighCPUTopicARN:
     Description: ARN of the SNS topic for high CPU alarms
     Value: !Ref HighCPUTopic
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-HighCPUTopicARN"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-HighCPUTopicARN"
 
   ErrorRateTopicARN:
     Description: ARN of the SNS topic for error rate alarms
     Value: !Ref ErrorRateTopic
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-ErrorRateTopicARN"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-ErrorRateTopicARN"
 
   HealthTopicARN:
     Description: ARN of the SNS topic for environment health alarms
     Value: !Ref HealthTopic
     Export:
-      Name: !Sub "${EnvironmentName}-LunchMate-HealthTopicARN"
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-HealthTopicARN"
+      
+  ApiGatewayDomainNameOutput:
+    Description: API Gateway custom domain name
+    Value: !Ref ApiGatewayDomainName
+    Export:
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-ApiGatewayDomainName"
+      
+  ApiEndpoint:
+    Description: API endpoint URL with custom domain
+    Value: !If
+      - IsProduction
+      - !Sub "https://api.${DomainName}"
+      - !Sub "https://api.${SubDomainPrefix}.${DomainName}"
+    Export:
+      Name: !Sub "${EnvironmentName}-WhatsForLunch-ApiEndpoint"
