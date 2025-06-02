@@ -65,7 +65,7 @@ jobs:
       matrix:
         component: [frontend]
         version: [20]
-        test_path: client/src
+        test_path: 'client/src'
         paths: 'client/**'
     if: |
       github.event_name != 'workflow_dispatch' ||
@@ -94,7 +94,7 @@ jobs:
       matrix:
         component: [backend]
         version: [20]
-        test_path: server/lib/__tests__
+        test_path: 'server/lib/__tests__'
         paths: ['server/**','shared/**']
     if: |
       github.event_name != 'workflow_dispatch' ||
