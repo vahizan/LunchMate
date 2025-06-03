@@ -134,6 +134,11 @@ Parameters:
     Description: AWS Region where resources will be deployed
     Type: String
     Default: us-east-1
+  
+  ArtifactBucketPrefix:
+    Description: Name prefix of the S3 bucket containing templates/artifacts
+    Type: String
+    Default: whatsforlunch-artifacts
 
   # Networking Parameters
   VpcCIDR:
@@ -417,6 +422,7 @@ Resources:
     Properties:
       TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/networking.yaml"
       Parameters:
+        ArtifactBucketPrefix: !Ref ArtifactBucketPrefix
         EnvironmentName: !Ref EnvironmentName
         DomainName: !Ref DomainName
         SubDomainPrefix: !Ref SubDomainPrefix
@@ -440,6 +446,7 @@ Resources:
     Properties:
       TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/database.yaml"
       Parameters:
+        ArtifactBucketPrefix: !Ref ArtifactBucketPrefix
         EnvironmentName: !Ref EnvironmentName
         DBInstanceClass: !Ref DBInstanceClass
         DBName: !Ref DBName
@@ -468,6 +475,7 @@ Resources:
     Properties:
       TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/backend.yaml"
       Parameters:
+        ArtifactBucketPrefix: !Ref ArtifactBucketPrefix
         EnvironmentName: !Ref EnvironmentName
         ApplicationName: WhatsForLunch
         EnvironmentNamePrefix: whatsforlunch
