@@ -15,6 +15,11 @@ Parameters:
     Description: Main domain name for the application (e.g., findmylunch.com)
     Type: String
     Default: findmylunch.net
+
+  HostedZone:
+    Description: Hosted zone of route53 registered domain
+    Type: String
+    Default: Z07994812FJYO57OI646Z
     
   SubDomainPrefix:
     Description: Subdomain prefix for non-production environments (e.g., qa)
