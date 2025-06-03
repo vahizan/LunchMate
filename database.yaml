@@ -36,7 +36,7 @@ Parameters:
     Type: String
     Default: whatsforlunch_admin
     MinLength: 1
-    MaxLength: 16
+    MaxLength: 20
     AllowedPattern: '[a-zA-Z][a-zA-Z0-9_]*'
     ConstraintDescription: must begin with a letter and contain only alphanumeric characters or underscores
 
