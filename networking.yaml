@@ -91,8 +91,10 @@ Resources:
     Type: AWS::CertificateManager::Certificate
     Properties:
       DomainName: !Sub "api.${DomainName}"
-      SubjectAlternativeNames:
-        - !If [IsProduction, !Ref AWS::NoValue, !Sub "api.${SubDomainPrefix}.${DomainName}"]
+      SubjectAlternativeNames: !If
+        - IsProduction
+        - []  # Empty list for production, no additional SANs needed
+        - !Sub "api.${SubDomainPrefix}.${DomainName}"  # Only add subdomain SAN for non-production
       ValidationMethod: DNS
       DomainValidationOptions:
         - DomainName: !Sub "api.${DomainName}"
