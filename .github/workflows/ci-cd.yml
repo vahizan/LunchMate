@@ -195,7 +195,7 @@ jobs:
       - name: Create S3 bucket for CloudFormation templates if it doesn't exist
         run: |
           ENV="${{ github.event.inputs.environment || 'qa' }}"
-          BUCKET_NAME="lunchmate-artifacts-${ENV}-${{ vars.AWS_REGION }}"
+          BUCKET_NAME="whatsforlunch-artifacts-${ENV}-${{ vars.AWS_REGION }}"
           
           if ! aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
             aws s3 mb "s3://$BUCKET_NAME" --region ${{ vars.AWS_REGION }}
@@ -205,7 +205,7 @@ jobs:
       - name: Upload CloudFormation templates to S3
         run: |
           ENV="${{ github.event.inputs.environment || 'qa' }}"
-          BUCKET_NAME="lunchmate-artifacts-${ENV}-${{ vars.AWS_REGION }}"
+          BUCKET_NAME="whatsforlunch-artifacts-${ENV}-${{ vars.AWS_REGION }}"
           
           # Create templates directory in S3 bucket
           aws s3api put-object --bucket "$BUCKET_NAME" --key "templates/"
@@ -236,14 +236,14 @@ jobs:
             # Update existing stack
             aws cloudformation update-stack \
               --stack-name "$STACK_NAME" \
-              --template-url "https://lunchmate-artifacts-${ENV}-${{ vars.AWS_REGION }}.s3.amazonaws.com/templates/master.yaml" \
+              --template-url "https://whatsforlunch-artifacts-${ENV}-${{ vars.AWS_REGION }}.s3.amazonaws.com/templates/master.yaml" \
               --parameters file://$PARAMS_FILE \
               --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
           else
             # Create new stack
             aws cloudformation create-stack \
               --stack-name "$STACK_NAME" \
-              --template-url "https://lunchmate-artifacts-${ENV}-${{ vars.AWS_REGION }}.s3.amazonaws.com/templates/master.yaml" \
+              --template-url "https://whatsforlunch-artifacts-${ENV}-${{ vars.AWS_REGION }}.s3.amazonaws.com/templates/master.yaml" \
               --parameters file://$PARAMS_FILE \
               --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
           fi

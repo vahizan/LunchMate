@@ -77,11 +77,11 @@
   },
   {
     "ParameterKey": "DBName",
-    "ParameterValue": "lunchmate_prod"
+    "ParameterValue": "whatsforlunch_prod"
   },
   {
     "ParameterKey": "DBUsername",
-    "ParameterValue": "lunchmate_admin"
+    "ParameterValue": "whatsforlunch_admin"
   },
   {
     "ParameterKey": "DBAllocatedStorage",
@@ -141,6 +141,6 @@
   },
   {
     "ParameterKey": "ArtifactBucketPrefix",
-    "ParameterValue": "lunchmate-artifacts"
+    "ParameterValue": "whatsforlunch-artifacts"
   }
 ]
