@@ -40,7 +40,7 @@
     "ParameterValue": "true"
   },
   {
-    "ParameterKey": "HostedZoneId",
+    "ParameterKey": "HostedZone",
     "ParameterValue": "Z07994812FJYO57OI646Z"
   },
   {
