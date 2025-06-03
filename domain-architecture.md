@@ -1,10 +1,10 @@
-# LunchMate Domain Architecture
+# FindMyLunch Domain Architecture
 
-This document outlines the architecture for serving the LunchMate application at the domain `findmylunch.com`.
+This document outlines the architecture for serving the FindMyLunch application at the domain `findmylunch.com`.
 
 ## Domain Configuration Overview
 
-The LunchMate application is configured to use the domain `findmylunch.com` with the following components:
+The FindMyLunch application is configured to use the domain `findmylunch.com` with the following components:
 
 ### Production Environment
 

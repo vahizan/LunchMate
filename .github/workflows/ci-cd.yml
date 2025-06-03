@@ -1,6 +1,6 @@
-name: LunchMate CI/CD
+name: FindMyLunch CI/CD
 
-# Purpose: This unified workflow handles the complete CI/CD pipeline for the LunchMate application.
+# Purpose: This unified workflow handles the complete CI/CD pipeline for the FindMyLunch application.
 # It replaces the separate frontend.yml and backend.yml workflows with a single, comprehensive workflow.
 #
 # Key Features:
@@ -248,7 +248,7 @@ jobs:
          run: |
            ENV="${{ needs.setup-cloudformation.outputs.env }}"
            BUCKET_NAME="${{ needs.setup-cloudformation.outputs.bucket_name }}"
-           STACK_NAME="lunchmate-${ENV}-networking"
+           STACK_NAME="findmylunch-${ENV}-networking"
            PARAMS_FILE="${ENV}-parameters.json"
            
            # Extract networking parameters from the main parameters file
@@ -320,7 +320,7 @@ jobs:
          run: |
            ENV="${{ needs.setup-cloudformation.outputs.env }}"
            BUCKET_NAME="${{ needs.setup-cloudformation.outputs.bucket_name }}"
-           STACK_NAME="lunchmate-${ENV}-database"
+           STACK_NAME="findmylunch-${ENV}-database"
            PARAMS_FILE="${ENV}-parameters.json"
            
            # Extract database parameters from the main parameters file
@@ -368,7 +368,7 @@ jobs:
          run: |
            ENV="${{ needs.setup-cloudformation.outputs.env }}"
            BUCKET_NAME="${{ needs.setup-cloudformation.outputs.bucket_name }}"
-           STACK_NAME="lunchmate-${ENV}-backend"
+           STACK_NAME="findmylunch-${ENV}-backend"
            PARAMS_FILE="${ENV}-parameters.json"
            
            # Extract backend parameters from the main parameters file
@@ -376,7 +376,7 @@ jobs:
            
            # Create SecretsManagerARN parameter
            SECRETS_MANAGER_ARN=$(aws cloudformation describe-stacks \
-             --stack-name "lunchmate-${ENV}" \
+             --stack-name "findmylunch-${ENV}" \
              --query "Stacks[0].Outputs[?OutputKey=='SecretsManagerARN'].OutputValue" \
              --output text 2>/dev/null || echo "")
            
@@ -395,7 +395,7 @@ jobs:
            
            # Add ApiGatewayCertificateARN from networking stack
            API_CERT_ARN=$(aws cloudformation describe-stacks \
-             --stack-name "lunchmate-${ENV}-networking" \
+             --stack-name "findmylunch-${ENV}-networking" \
              --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayCertificateArn'].OutputValue" \
              --output text 2>/dev/null || echo "")
            
@@ -446,7 +446,7 @@ jobs:
          run: |
            ENV="${{ needs.setup-cloudformation.outputs.env }}"
            BUCKET_NAME="${{ needs.setup-cloudformation.outputs.bucket_name }}"
-           STACK_NAME="lunchmate-${ENV}-frontend"
+           STACK_NAME="findmylunch-${ENV}-frontend"
            PARAMS_FILE="${ENV}-parameters.json"
            
            # Extract frontend parameters from the main parameters file
@@ -454,7 +454,7 @@ jobs:
            
            # Add CertificateArn from networking stack
            CERT_ARN=$(aws cloudformation describe-stacks \
-             --stack-name "lunchmate-${ENV}-networking" \
+             --stack-name "findmylunch-${ENV}-networking" \
              --query "Stacks[0].Outputs[?OutputKey=='CertificateArn'].OutputValue" \
              --output text 2>/dev/null || echo "")
            
@@ -520,8 +520,8 @@ jobs:
         run: |
           # Get S3 bucket name from CloudFormation stack outputs
           BUCKET_NAME=$(aws cloudformation describe-stacks \
-            --stack-name lunchmate-qa \
-            --query "Stacks[0].Outputs[?ExportName=='qa-LunchMate-WebsiteBucketName'].OutputValue" \
+            --stack-name findmylunch-qa \
+            --query "Stacks[0].Outputs[?ExportName=='qa-FindMyLunch-WebsiteBucketName'].OutputValue" \
             --output text)
           
           aws s3 sync dist/client s3://$BUCKET_NAME --delete
@@ -538,8 +538,8 @@ jobs:
         run: |
           # Get CloudFront distribution ID from CloudFormation stack outputs
           DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
-            --stack-name lunchmate-qa \
-            --query "Stacks[0].Outputs[?ExportName=='qa-LunchMate-CloudFrontDistributionId'].OutputValue" \
+            --stack-name findmylunch-qa \
+            --query "Stacks[0].Outputs[?ExportName=='qa-FindMyLunch-CloudFrontDistributionId'].OutputValue" \
             --output text)
           
           aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"
@@ -553,7 +553,7 @@ jobs:
           aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           application_name: ${{ secrets.EB_APPLICATION_NAME }}
           environment_name: ${{ secrets.EB_ENVIRONMENT_NAME }}
-          version_label: "lunchmate-backend-${{ github.run_number }}-${{ github.run_attempt }}"
+          version_label: "findmylunch-backend-${{ github.run_number }}-${{ github.run_attempt }}"
           region: ${{ vars.AWS_REGION }}
           deployment_package: eb-bundle.zip
           wait_for_environment_recovery: 300
@@ -607,8 +607,8 @@ jobs:
         run: |
           # Get S3 bucket name from CloudFormation stack outputs
           BUCKET_NAME=$(aws cloudformation describe-stacks \
-            --stack-name lunchmate-prod \
-            --query "Stacks[0].Outputs[?ExportName=='prod-LunchMate-WebsiteBucketName'].OutputValue" \
+            --stack-name findmylunch-prod \
+            --query "Stacks[0].Outputs[?ExportName=='prod-FindMyLunch-WebsiteBucketName'].OutputValue" \
             --output text)
           
           aws s3 sync dist/client s3://$BUCKET_NAME --delete
@@ -625,8 +625,8 @@ jobs:
         run: |
           # Get CloudFront distribution ID from CloudFormation stack outputs
           DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
-            --stack-name lunchmate-prod \
-            --query "Stacks[0].Outputs[?ExportName=='prod-LunchMate-CloudFrontDistributionId'].OutputValue" \
+            --stack-name findmylunch-prod \
+            --query "Stacks[0].Outputs[?ExportName=='prod-FindMyLunch-CloudFrontDistributionId'].OutputValue" \
             --output text)
           
           aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"
@@ -640,7 +640,7 @@ jobs:
           aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           application_name: ${{ vars.EB_APPLICATION_NAME }}
           environment_name: ${{ vars.EB_ENVIRONMENT_NAME }}
-          version_label: "lunchmate-backend-${{ github.run_number }}-${{ github.run_attempt }}"
+          version_label: "findmylunch-backend-${{ github.run_number }}-${{ github.run_attempt }}"
           region: ${{ vars.AWS_REGION }}
           deployment_package: eb-bundle.zip
           wait_for_environment_recovery: 300

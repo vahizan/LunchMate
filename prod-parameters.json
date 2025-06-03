@@ -29,7 +29,7 @@
   },
   {
     "ParameterKey": "DomainName",
-    "ParameterValue": "lunchmate.com"
+    "ParameterValue": "findmylunch.com"
   },
   {
     "ParameterKey": "SubDomainPrefix",
@@ -113,11 +113,11 @@
   },
   {
     "ParameterKey": "GitHubOwner",
-    "ParameterValue": "lunchmate"
+    "ParameterValue": "findmylunch"
   },
   {
     "ParameterKey": "GitHubRepo",
-    "ParameterValue": "lunchmate-app"
+    "ParameterValue": "findmylunch-app"
   },
   {
     "ParameterKey": "GitHubBranch",
@@ -129,7 +129,7 @@
   },
   {
     "ParameterKey": "NotificationEmail",
-    "ParameterValue": "devops@lunchmate.com"
+    "ParameterValue": "devops@findmylunch.com"
   },
   {
     "ParameterKey": "EnableAutomaticDeployment",
