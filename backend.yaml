@@ -80,7 +80,7 @@ Parameters:
   DomainName:
     Description: Main domain name for the application (e.g., findmylunch.com)
     Type: String
-    Default: findmylunch.com
+    Default: findmylunch.net
     
   SubDomainPrefix:
     Description: Subdomain prefix for non-production environments (e.g., qa)
