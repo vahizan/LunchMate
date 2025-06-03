@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'WhatsForLunch Application - Backend Infrastructure (Nested Stack)'
+Description: 'FindMyLunch Application - Backend Infrastructure (Nested Stack)'
 
 Parameters:
   EnvironmentName:
@@ -14,12 +14,12 @@ Parameters:
   ApplicationName:
     Description: Name of the Elastic Beanstalk application
     Type: String
-    Default: WhatsForLunch
+    Default: FindMyLunch
 
   EnvironmentNamePrefix:
     Description: Prefix for the Elastic Beanstalk environment name
     Type: String
-    Default: whatsforlunch
+    Default: findmylunch
 
   NodeJSVersion:
     Description: Node.js version for the Elastic Beanstalk platform
@@ -78,9 +78,9 @@ Parameters:
     Default: ''
     
   DomainName:
-    Description: Main domain name for the application (e.g., whatsforlunch.to)
+    Description: Main domain name for the application (e.g., findmylunch.com)
     Type: String
-    Default: whatsforlunch.to
+    Default: findmylunch.com
     
   SubDomainPrefix:
     Description: Subdomain prefix for non-production environments (e.g., qa)
@@ -120,11 +120,11 @@ Resources:
         - 'arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkEnhancedHealth'
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-whatsforlunch-eb-service-role
+          Value: !Sub ${EnvironmentName}-findmylunch-eb-service-role
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: WhatsForLunch
+          Value: FindMyLunch
 
   # IAM Role for EC2 Instances
   EC2Role:
@@ -144,17 +144,17 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-whatsforlunch-eb-ec2-role
+          Value: !Sub ${EnvironmentName}-findmylunch-eb-ec2-role
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: WhatsForLunch
+          Value: FindMyLunch
 
   # IAM Policy for Secrets Manager Access
   SecretsManagerPolicy:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: !Sub ${EnvironmentName}-whatsforlunch-secrets-manager-policy
+      PolicyName: !Sub ${EnvironmentName}-findmylunch-secrets-manager-policy
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -178,14 +178,14 @@ Resources:
     Type: AWS::ElasticBeanstalk::Application
     Properties:
       ApplicationName: !Sub ${EnvironmentNamePrefix}-${EnvironmentName}
-      Description: !Sub "WhatsForLunch ${EnvironmentName} Backend Application"
+      Description: !Sub "FindMyLunch ${EnvironmentName} Backend Application"
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-whatsforlunch-application
+          Value: !Sub ${EnvironmentName}-findmylunch-application
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: WhatsForLunch
+          Value: FindMyLunch
 
   # Elastic Beanstalk Environment
   ElasticBeanstalkEnvironment:
@@ -193,7 +193,7 @@ Resources:
     Properties:
       ApplicationName: !Ref ElasticBeanstalkApplication
       EnvironmentName: !Sub ${EnvironmentNamePrefix}-${EnvironmentName}
-      Description: !Sub "WhatsForLunch ${EnvironmentName} Backend Environment"
+      Description: !Sub "FindMyLunch ${EnvironmentName} Backend Environment"
       SolutionStackName: !Sub "64bit Amazon Linux 2023 v6.0.2 running Node.js ${NodeJSVersion}"
       Tier:
         Name: WebServer
@@ -204,15 +204,15 @@ Resources:
         - Namespace: aws:ec2:vpc
           OptionName: VPCId
           Value: 
-            Fn::ImportValue: !Sub ${EnvironmentName}-WhatsForLunch-VPC
+            Fn::ImportValue: !Sub ${EnvironmentName}-FindMyLunch-VPC
         - Namespace: aws:ec2:vpc
           OptionName: Subnets
           Value: 
-            Fn::ImportValue: !Sub ${EnvironmentName}-WhatsForLunch-PrivateSubnets
+            Fn::ImportValue: !Sub ${EnvironmentName}-FindMyLunch-PrivateSubnets
         - Namespace: aws:ec2:vpc
           OptionName: ELBSubnets
           Value: 
-            Fn::ImportValue: !Sub ${EnvironmentName}-WhatsForLunch-PublicSubnets
+            Fn::ImportValue: !Sub ${EnvironmentName}-FindMyLunch-PublicSubnets
         - Namespace: aws:ec2:vpc
           OptionName: AssociatePublicIpAddress
           Value: false
@@ -227,11 +227,11 @@ Resources:
         - Namespace: aws:elbv2:loadbalancer
           OptionName: SecurityGroups
           Value: 
-            Fn::ImportValue: !Sub ${EnvironmentName}-WhatsForLunch-ALBSecurityGroup
+            Fn::ImportValue: !Sub ${EnvironmentName}-FindMyLunch-ALBSecurityGroup
         - Namespace: aws:elbv2:loadbalancer
           OptionName: ManagedSecurityGroup
           Value: 
-            Fn::ImportValue: !Sub ${EnvironmentName}-WhatsForLunch-ALBSecurityGroup
+            Fn::ImportValue: !Sub ${EnvironmentName}-FindMyLunch-ALBSecurityGroup
         - Namespace: aws:elbv2:listener:default
           OptionName: Protocol
           Value: HTTP
@@ -261,7 +261,7 @@ Resources:
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: SecurityGroups
           Value: 
-            Fn::ImportValue: !Sub ${EnvironmentName}-WhatsForLunch-EC2SecurityGroup
+            Fn::ImportValue: !Sub ${EnvironmentName}-FindMyLunch-EC2SecurityGroup
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: InstanceType
           Value: !Ref InstanceType
@@ -270,7 +270,7 @@ Resources:
           Value: true
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: EC2KeyName
-          Value: !If [IsProduction, 'whatsforlunch-prod-key', 'whatsforlunch-qa-key']
+          Value: !If [IsProduction, 'findmylunch-prod-key', 'findmylunch-qa-key']
 
         # Auto Scaling Configuration
         - Namespace: aws:autoscaling:asg
@@ -361,11 +361,11 @@ Resources:
 
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-whatsforlunch-environment
+          Value: !Sub ${EnvironmentName}-findmylunch-environment
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: WhatsForLunch
+          Value: FindMyLunch
 
   # Sample Application Version
   ApplicationVersionResource:
@@ -396,25 +396,25 @@ Resources:
         - !Ref HighCPUTopic
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-whatsforlunch-high-cpu-alarm
+          Value: !Sub ${EnvironmentName}-findmylunch-high-cpu-alarm
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: WhatsForLunch
+          Value: FindMyLunch
 
   # SNS Topic for High CPU Alarm
   HighCPUTopic:
     Type: AWS::SNS::Topic
     Properties:
-      DisplayName: !Sub "${EnvironmentName}-WhatsForLunch-HighCPU"
-      TopicName: !Sub "${EnvironmentName}-WhatsForLunch-HighCPU"
+      DisplayName: !Sub "${EnvironmentName}-FindMyLunch-HighCPU"
+      TopicName: !Sub "${EnvironmentName}-FindMyLunch-HighCPU"
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-whatsforlunch-high-cpu-topic
+          Value: !Sub ${EnvironmentName}-findmylunch-high-cpu-topic
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: WhatsForLunch
+          Value: FindMyLunch
 
   # 5XX Error Rate Alarm
   High5xxErrorAlarm:
@@ -435,25 +435,25 @@ Resources:
         - !Ref ErrorRateTopic
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-whatsforlunch-5xx-error-alarm
+          Value: !Sub ${EnvironmentName}-findmylunch-5xx-error-alarm
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: WhatsForLunch
+          Value: FindMyLunch
 
   # SNS Topic for Error Rate Alarm
   ErrorRateTopic:
     Type: AWS::SNS::Topic
     Properties:
-      DisplayName: !Sub "${EnvironmentName}-WhatsForLunch-ErrorRate"
-      TopicName: !Sub "${EnvironmentName}-WhatsForLunch-ErrorRate"
+      DisplayName: !Sub "${EnvironmentName}-FindMyLunch-ErrorRate"
+      TopicName: !Sub "${EnvironmentName}-FindMyLunch-ErrorRate"
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-whatsforlunch-error-rate-topic
+          Value: !Sub ${EnvironmentName}-findmylunch-error-rate-topic
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: WhatsForLunch
+          Value: FindMyLunch
 
   # Environment Health Alarm
   EnvironmentHealthAlarm:
@@ -474,25 +474,25 @@ Resources:
         - !Ref HealthTopic
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-whatsforlunch-health-alarm
+          Value: !Sub ${EnvironmentName}-findmylunch-health-alarm
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: WhatsForLunch
+          Value: FindMyLunch
 
   # SNS Topic for Health Alarm
   HealthTopic:
     Type: AWS::SNS::Topic
     Properties:
-      DisplayName: !Sub "${EnvironmentName}-WhatsForLunch-Health"
-      TopicName: !Sub "${EnvironmentName}-WhatsForLunch-Health"
+      DisplayName: !Sub "${EnvironmentName}-FindMyLunch-Health"
+      TopicName: !Sub "${EnvironmentName}-FindMyLunch-Health"
       Tags:
         - Key: Name
-          Value: !Sub ${EnvironmentName}-whatsforlunch-health-topic
+          Value: !Sub ${EnvironmentName}-findmylunch-health-topic
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: WhatsForLunch
+          Value: FindMyLunch
           
   # API Gateway Custom Domain
   ApiGatewayDomainName:
@@ -505,7 +505,7 @@ Resources:
       CertificateArn: !If
         - IsImportedApiCertificate
         - !Ref ApiGatewayCertificateARN
-        - Fn::ImportValue: !Sub "${EnvironmentName}-WhatsForLunch-ApiGatewayCertificateArn"
+        - Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-ApiGatewayCertificateArn"
       EndpointConfiguration:
         Types:
           - REGIONAL
@@ -519,7 +519,7 @@ Resources:
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: WhatsForLunch
+          Value: FindMyLunch
           
   # API Gateway Base Path Mapping
   ApiGatewayBasePathMapping:
@@ -537,7 +537,7 @@ Resources:
       HostedZoneId: !If
         - IsImportedHostedZone
         - !Ref HostedZoneId
-        - Fn::ImportValue: !Sub "${EnvironmentName}-WhatsForLunch-HostedZoneId"
+        - Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
       Name: !If
         - IsProduction
         - !Sub "api.${DomainName}"
@@ -553,67 +553,67 @@ Outputs:
     Description: Name of the Elastic Beanstalk application
     Value: !Ref ElasticBeanstalkApplication
     Export:
-      Name: !Sub "${EnvironmentName}-WhatsForLunch-EBApplicationName"
+      Name: !Sub "${EnvironmentName}-FindMyLunch-EBApplicationName"
 
   ElasticBeanstalkEnvironmentName:
     Description: Name of the Elastic Beanstalk environment
     Value: !Ref ElasticBeanstalkEnvironment
     Export:
-      Name: !Sub "${EnvironmentName}-WhatsForLunch-EBEnvironmentName"
+      Name: !Sub "${EnvironmentName}-FindMyLunch-EBEnvironmentName"
 
   ElasticBeanstalkEnvironmentId:
     Description: ID of the Elastic Beanstalk environment
     Value: !Ref ElasticBeanstalkEnvironment
     Export:
-      Name: !Sub "${EnvironmentName}-WhatsForLunch-EBEnvironmentId"
+      Name: !Sub "${EnvironmentName}-FindMyLunch-EBEnvironmentId"
 
   ElasticBeanstalkEnvironmentURL:
     Description: URL of the Elastic Beanstalk environment
     Value: !GetAtt ElasticBeanstalkEnvironment.EndpointURL
     Export:
-      Name: !Sub "${EnvironmentName}-WhatsForLunch-EBEnvironmentURL"
+      Name: !Sub "${EnvironmentName}-FindMyLunch-EBEnvironmentURL"
 
   ServiceRoleARN:
     Description: ARN of the Elastic Beanstalk service role
     Value: !GetAtt ServiceRole.Arn
     Export:
-      Name: !Sub "${EnvironmentName}-WhatsForLunch-EBServiceRoleARN"
+      Name: !Sub "${EnvironmentName}-FindMyLunch-EBServiceRoleARN"
 
   EC2RoleARN:
     Description: ARN of the EC2 instance role
     Value: !GetAtt EC2Role.Arn
     Export:
-      Name: !Sub "${EnvironmentName}-WhatsForLunch-EBInstanceRoleARN"
+      Name: !Sub "${EnvironmentName}-FindMyLunch-EBInstanceRoleARN"
 
   InstanceProfileARN:
     Description: ARN of the EC2 instance profile
     Value: !GetAtt InstanceProfile.Arn
     Export:
-      Name: !Sub "${EnvironmentName}-WhatsForLunch-EBInstanceProfileARN"
+      Name: !Sub "${EnvironmentName}-FindMyLunch-EBInstanceProfileARN"
 
   HighCPUTopicARN:
     Description: ARN of the SNS topic for high CPU alarms
     Value: !Ref HighCPUTopic
     Export:
-      Name: !Sub "${EnvironmentName}-WhatsForLunch-HighCPUTopicARN"
+      Name: !Sub "${EnvironmentName}-FindMyLunch-HighCPUTopicARN"
 
   ErrorRateTopicARN:
     Description: ARN of the SNS topic for error rate alarms
     Value: !Ref ErrorRateTopic
     Export:
-      Name: !Sub "${EnvironmentName}-WhatsForLunch-ErrorRateTopicARN"
+      Name: !Sub "${EnvironmentName}-FindMyLunch-ErrorRateTopicARN"
 
   HealthTopicARN:
     Description: ARN of the SNS topic for environment health alarms
     Value: !Ref HealthTopic
     Export:
-      Name: !Sub "${EnvironmentName}-WhatsForLunch-HealthTopicARN"
+      Name: !Sub "${EnvironmentName}-FindMyLunch-HealthTopicARN"
       
   ApiGatewayDomainNameOutput:
     Description: API Gateway custom domain name
     Value: !Ref ApiGatewayDomainName
     Export:
-      Name: !Sub "${EnvironmentName}-WhatsForLunch-ApiGatewayDomainName"
+      Name: !Sub "${EnvironmentName}-FindMyLunch-ApiGatewayDomainName"
       
   ApiEndpoint:
     Description: API endpoint URL with custom domain
@@ -622,4 +622,4 @@ Outputs:
       - !Sub "https://api.${DomainName}"
       - !Sub "https://api.${SubDomainPrefix}.${DomainName}"
     Export:
-      Name: !Sub "${EnvironmentName}-WhatsForLunch-ApiEndpoint"
+      Name: !Sub "${EnvironmentName}-FindMyLunch-ApiEndpoint"

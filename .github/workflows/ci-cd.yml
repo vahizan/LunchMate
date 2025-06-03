@@ -200,7 +200,7 @@ jobs:
          id: set-env
          run: |
            ENV="${{ github.event.inputs.environment || 'qa' }}"
-           BUCKET_NAME="whatsforlunch-artifacts-${ENV}-${{ vars.AWS_REGION }}"
+           BUCKET_NAME="findmylunch-artifacts-${ENV}-${{ vars.AWS_REGION }}"
            echo "env=$ENV" >> $GITHUB_OUTPUT
            echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
 
@@ -383,8 +383,8 @@ jobs:
            if [ -z "$SECRETS_MANAGER_ARN" ]; then
              # If not found, create a new secret
              SECRETS_MANAGER_ARN=$(aws secretsmanager create-secret \
-               --name "${ENV}-whatsforlunch-env-vars" \
-               --description "Environment variables for ${ENV} WhatsForLunch application" \
+               --name "${ENV}-findmylunch-env-vars" \
+               --description "Environment variables for ${ENV} FindMyLunch application" \
                --secret-string '{}' \
                --query ARN --output text)
            fi

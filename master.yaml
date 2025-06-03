@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'WhatsForLunch Application - Master CloudFormation Template'
+Description: 'FindMyLunch Application - Master CloudFormation Template'
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -138,7 +138,7 @@ Parameters:
   ArtifactBucketPrefix:
     Description: Name prefix of the S3 bucket containing templates/artifacts
     Type: String
-    Default: whatsforlunch-artifacts
+    Default: findmylunch-artifacts
 
   # Networking Parameters
   VpcCIDR:
@@ -168,9 +168,9 @@ Parameters:
 
   # Frontend Parameters
   DomainName:
-    Description: Main domain name for the application (e.g., whatsforlunch.to)
+    Description: Main domain name for the application (e.g., findmylunch.com)
     Type: String
-    Default: whatsforlunch.to
+    Default: findmylunch.com
 
   SubDomainPrefix:
     Description: Subdomain prefix for non-production environments (e.g., qa)
@@ -257,7 +257,7 @@ Parameters:
   DBName:
     Description: Database name
     Type: String
-    Default: whatsforlunch
+    Default: findmylunch
     MinLength: 1
     MaxLength: 64
     AllowedPattern: '[a-zA-Z][a-zA-Z0-9_]*'
@@ -266,7 +266,7 @@ Parameters:
   DBUsername:
     Description: Database admin username
     Type: String
-    Default: whatsforlunch_admin
+    Default: findmylunch_admin
     MinLength: 1
     MaxLength: 20
     AllowedPattern: '[a-zA-Z][a-zA-Z0-9_]*'
@@ -343,12 +343,12 @@ Parameters:
   GitHubOwner:
     Description: GitHub repository owner
     Type: String
-    Default: whatsforlunch
+    Default: findmylunch
 
   GitHubRepo:
     Description: GitHub repository name
     Type: String
-    Default: whatsforlunch-app
+    Default: findmylunch-app
 
   GitHubBranch:
     Description: GitHub branch to monitor for changes
@@ -363,7 +363,7 @@ Parameters:
   NotificationEmail:
     Description: Email address to receive pipeline notifications
     Type: String
-    Default: admin@whatsforlunch.com
+    Default: admin@findmylunch.com
 
   EnableAutomaticDeployment:
     Description: Enable automatic deployment to production (if false, requires manual approval)
@@ -404,17 +404,17 @@ Resources:
   SecretsManagerSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Description: !Sub "Environment variables for ${EnvironmentName} WhatsForLunch application"
+      Description: !Sub "Environment variables for ${EnvironmentName} FindMyLunch application"
       GenerateSecretString:
         SecretStringTemplate: '{}'
         GenerateStringKey: "PLACEHOLDER"
       Tags:
         - Key: Name
-          Value: !Sub "${EnvironmentName}-whatsforlunch-env-vars"
+          Value: !Sub "${EnvironmentName}-findmylunch-env-vars"
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: WhatsForLunch
+          Value: FindMyLunch
 
   # Networking Stack
   NetworkingStack:
@@ -433,11 +433,11 @@ Resources:
         PrivateSubnet2CIDR: !Ref PrivateSubnet2CIDR
       Tags:
         - Key: Name
-          Value: !Sub "${EnvironmentName}-whatsforlunch-networking-stack"
+          Value: !Sub "${EnvironmentName}-findmylunch-networking-stack"
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: WhatsForLunch
+          Value: FindMyLunch
 
   # Database Stack
   DatabaseStack:
@@ -460,11 +460,11 @@ Resources:
         MonitoringInterval: !Ref MonitoringInterval
       Tags:
         - Key: Name
-          Value: !Sub "${EnvironmentName}-whatsforlunch-database-stack"
+          Value: !Sub "${EnvironmentName}-findmylunch-database-stack"
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: WhatsForLunch
+          Value: FindMyLunch
 
   # Backend Stack
   BackendStack:
@@ -477,8 +477,8 @@ Resources:
       Parameters:
         ArtifactBucketPrefix: !Ref ArtifactBucketPrefix
         EnvironmentName: !Ref EnvironmentName
-        ApplicationName: WhatsForLunch
-        EnvironmentNamePrefix: whatsforlunch
+        ApplicationName: FindMyLunch
+        EnvironmentNamePrefix: findmylunch
         DomainName: !Ref DomainName
         SubDomainPrefix: !Ref SubDomainPrefix
         NodeJSVersion: !Ref NodeJSVersion
@@ -490,16 +490,16 @@ Resources:
         SecretsManagerARN: !Ref SecretsManagerSecret
         SSLCertificateARN: !Ref SSLCertificateARN
         ApiGatewayCertificateARN:
-          Fn::ImportValue: !Sub "${EnvironmentName}-WhatsForLunch-ApiGatewayCertificateArn"
+          Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-ApiGatewayCertificateArn"
         HostedZoneId:
-          Fn::ImportValue: !Sub "${EnvironmentName}-WhatsForLunch-HostedZoneId"
+          Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
       Tags:
         - Key: Name
-          Value: !Sub "${EnvironmentName}-whatsforlunch-backend-stack"
+          Value: !Sub "${EnvironmentName}-findmylunch-backend-stack"
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: WhatsForLunch
+          Value: FindMyLunch
 
   # Frontend Stack
   FrontendStack:
@@ -513,16 +513,16 @@ Resources:
         SubDomainPrefix: !Ref SubDomainPrefix
         CreateRoute53Records: !Ref CreateRoute53Records
         HostedZoneId:
-          Fn::ImportValue: !Sub "${EnvironmentName}-WhatsForLunch-HostedZoneId"
+          Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
         CertificateArn:
-          Fn::ImportValue: !Sub "${EnvironmentName}-WhatsForLunch-CertificateArn"
+          Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-CertificateArn"
       Tags:
         - Key: Name
-          Value: !Sub "${EnvironmentName}-whatsforlunch-frontend-stack"
+          Value: !Sub "${EnvironmentName}-findmylunch-frontend-stack"
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: WhatsForLunch
+          Value: FindMyLunch
 
 Outputs:
   # VPC Outputs

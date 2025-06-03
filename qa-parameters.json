@@ -77,11 +77,11 @@
   },
   {
     "ParameterKey": "DBName",
-    "ParameterValue": "whatsforlunch_qa"
+    "ParameterValue": "findmylunch_qa"
   },
   {
     "ParameterKey": "DBUsername",
-    "ParameterValue": "whatsforlunch_admin"
+    "ParameterValue": "findmylunch_admin"
   },
   {
     "ParameterKey": "DBAllocatedStorage",
@@ -141,6 +141,6 @@
   },
   {
     "ParameterKey": "ArtifactBucketPrefix",
-    "ParameterValue": "whatsforlunch-artifacts"
+    "ParameterValue": "findmylunch-artifacts"
   }
 ]
