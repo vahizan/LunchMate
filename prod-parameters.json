@@ -5,7 +5,7 @@
   },
   {
     "ParameterKey": "AWSRegion",
-    "ParameterValue": "us-east-1"
+    "ParameterValue": "eu-west-1"
   },
   {
     "ParameterKey": "VpcCIDR",
@@ -41,7 +41,7 @@
   },
   {
     "ParameterKey": "HostedZoneId",
-    "ParameterValue": "Z1EXAMPLE"
+    "ParameterValue": "Z07994812FJYO57OI646Z"
   },
   {
     "ParameterKey": "NodeJSVersion",
@@ -69,7 +69,7 @@
   },
   {
     "ParameterKey": "SSLCertificateARN",
-    "ParameterValue": "arn:aws:acm:us-east-1:123456789012:certificate/example-prod"
+    "ParameterValue": "arn:aws:acm:eu-west-1:123456789012:certificate/findmylunch-prod"
   },
   {
     "ParameterKey": "DBInstanceClass",
