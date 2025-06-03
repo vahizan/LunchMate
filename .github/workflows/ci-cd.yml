@@ -252,7 +252,7 @@ jobs:
            PARAMS_FILE="${ENV}-parameters.json"
            
            # Extract networking parameters from the main parameters file
-           jq '[.[] | select(.ParameterKey | test("^(EnvironmentName|DomainName|SubDomainPrefix|VpcCIDR|PublicSubnet1CIDR|PublicSubnet2CIDR|PrivateSubnet1CIDR|PrivateSubnet2CIDR|ArtifactBucketPrefix)$"))]' $PARAMS_FILE > networking-params.json
+           jq '[.[] | select(.ParameterKey | test("^(EnvironmentName|DomainName|SubDomainPrefix|VpcCIDR|PublicSubnet1CIDR|PublicSubnet2CIDR|PrivateSubnet1CIDR|PrivateSubnet2CIDR)$"))]' $PARAMS_FILE > networking-params.json
            
            # Check if stack exists
            if aws cloudformation describe-stacks --stack-name "$STACK_NAME" 2>/dev/null; then
