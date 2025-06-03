@@ -84,7 +84,7 @@ Resources:
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: FindMyLunch
+          Value: FindMyLunch   
 
   # API Gateway Certificate (us-east-1 specific for API Gateway custom domains)
   ApiGatewayCertificate:
@@ -385,6 +385,30 @@ Resources:
         - Key: Application
           Value: FindMyLunch
 
+  # API Gateway Custom Domain
+  ApiGatewayDomainName:
+    Type: AWS::ApiGateway::DomainName
+    Properties:
+      DomainName: !If
+        - IsProduction
+        - !Sub "api.${DomainName}"
+        - !Sub "api.${SubDomainPrefix}.${DomainName}"
+      CertificateArn: !Ref ApiGatewayCertificate
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      SecurityPolicy: TLS_1_2
+      Tags:
+        - Key: Name
+          Value: !If
+            - IsProduction
+            - !Sub "api.${DomainName}"
+            - !Sub "api.${SubDomainPrefix}.${DomainName}"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: FindMyLunch
+
 Outputs:
   # Route53 and ACM Outputs
   HostedZoneId:
@@ -404,6 +428,24 @@ Outputs:
     Value: !Ref ApiGatewayCertificate
     Export:
       Name: !Sub ${EnvironmentName}-FindMyLunch-ApiGatewayCertificateArn
+
+  ApiGatewayDomainNameOutput:
+    Description: API Gateway custom domain name
+    Value: !Ref ApiGatewayDomainName
+    Export:
+      Name: !Sub ${EnvironmentName}-FindMyLunch-ApiGatewayDomainName
+
+  ApiGatewayRegionalDomainName:
+    Description: API Gateway regional domain name
+    Value: !GetAtt ApiGatewayDomainName.RegionalDomainName
+    Export:
+      Name: !Sub ${EnvironmentName}-FindMyLunch-ApiGatewayRegionalDomainName
+|
+  ApiGatewayRegionalHostedZoneId:
+    Description: API Gateway regional hosted zone ID
+    Value: !GetAtt ApiGatewayDomainName.RegionalHostedZoneId
+    Export:
+      Name: !Sub ${EnvironmentName}-FindMyLunch-ApiGatewayRegionalHostedZoneId
 
   DomainNameOutput:
     Description: Domain name

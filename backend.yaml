@@ -494,59 +494,15 @@ Resources:
         - Key: Application
           Value: FindMyLunch
           
-  # API Gateway Custom Domain
-  ApiGatewayDomainName:
-    Type: AWS::ApiGateway::DomainName
-    Properties:
-      DomainName: !If
-        - IsProduction
-        - !Sub "api.${DomainName}"
-        - !Sub "api.${SubDomainPrefix}.${DomainName}"
-      CertificateArn: !If
-        - IsImportedApiCertificate
-        - !Ref ApiGatewayCertificateARN
-        - Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-ApiGatewayCertificateArn"
-      EndpointConfiguration:
-        Types:
-          - REGIONAL
-      SecurityPolicy: TLS_1_2
-      Tags:
-        - Key: Name
-          Value: !If
-            - IsProduction
-            - !Sub "api.${DomainName}"
-            - !Sub "api.${SubDomainPrefix}.${DomainName}"
-        - Key: Environment
-          Value: !Ref EnvironmentName
-        - Key: Application
-          Value: FindMyLunch
-          
   # API Gateway Base Path Mapping
   ApiGatewayBasePathMapping:
     Type: AWS::ApiGateway::BasePathMapping
     DependsOn: ElasticBeanstalkEnvironment
     Properties:
-      DomainName: !Ref ApiGatewayDomainName
+      DomainName:
+        Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-ApiGatewayDomainName"
       RestApiId: !GetAtt ElasticBeanstalkEnvironment.APIGatewayId
       Stage: !If [IsProduction, 'prod', 'qa']
-      
-  # Route53 Record for API Gateway
-  ApiDNSRecord:
-    Type: AWS::Route53::RecordSet
-    Properties:
-      HostedZoneId: !If
-        - IsImportedHostedZone
-        - !Ref HostedZoneId
-        - Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
-      Name: !If
-        - IsProduction
-        - !Sub "api.${DomainName}"
-        - !Sub "api.${SubDomainPrefix}.${DomainName}"
-      Type: A
-      AliasTarget:
-        DNSName: !GetAtt ApiGatewayDomainName.RegionalDomainName
-        HostedZoneId: !GetAtt ApiGatewayDomainName.RegionalHostedZoneId
-        EvaluateTargetHealth: false
 
 Outputs:
   ElasticBeanstalkApplicationName:
@@ -608,12 +564,6 @@ Outputs:
     Value: !Ref HealthTopic
     Export:
       Name: !Sub "${EnvironmentName}-FindMyLunch-HealthTopicARN"
-      
-  ApiGatewayDomainNameOutput:
-    Description: API Gateway custom domain name
-    Value: !Ref ApiGatewayDomainName
-    Export:
-      Name: !Sub "${EnvironmentName}-FindMyLunch-ApiGatewayDomainName"
       
   ApiEndpoint:
     Description: API endpoint URL with custom domain
