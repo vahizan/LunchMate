@@ -405,16 +405,35 @@ Mappings:
       EnhancedMonitoring: true
 
 Resources:
+  # Base Networking Stack (creates the hosted zone first)
+  BaseNetworkingStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/base-networking.yaml"
+      Parameters:
+        ArtifactBucketPrefix: !Ref ArtifactBucketPrefix
+        EnvironmentName: !Ref EnvironmentName
+        DomainName: !Ref DomainName
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-findmylunch-base-networking-stack"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: FindMyLunch
+
   # API Gateway Certificate Stack (us-east-1)
   ApiCertificateStack:
     Type: AWS::CloudFormation::Stack
+    DependsOn: BaseNetworkingStack
     Properties:
       TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${CertificateRegion}.s3.amazonaws.com/templates/api-certificate.yaml"
       Parameters:
         EnvironmentName: !Ref EnvironmentName
         DomainName: !Ref DomainName
         SubDomainPrefix: !Ref SubDomainPrefix
-        HostedZoneId: !Ref HostedZoneId  # Use the parameter directly
+        HostedZoneId:
+          Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-findmylunch-api-certificate-stack"
@@ -439,7 +458,6 @@ Resources:
         PublicSubnet2CIDR: !Ref PublicSubnet2CIDR
         PrivateSubnet1CIDR: !Ref PrivateSubnet1CIDR
         PrivateSubnet2CIDR: !Ref PrivateSubnet2CIDR
-        HostedZoneId: !Ref HostedZoneId  # Pass the HostedZoneId parameter
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-findmylunch-networking-stack"
