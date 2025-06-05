@@ -21,6 +21,12 @@ Parameters:
     Type: String
     Default: qa
 
+  # Add HostedZoneId parameter (optional, for importing existing hosted zone)
+  HostedZoneId:
+    Description: Existing Route53 Hosted Zone ID (if not provided, a new one will be created)
+    Type: String
+    Default: ""
+
   VpcCIDR:
     Description: CIDR block for the VPC
     Type: String
@@ -48,8 +54,25 @@ Parameters:
 
 Conditions:
   IsProduction: !Equals [!Ref EnvironmentName, "prod"]
+  # Add condition to check if HostedZoneId is provided
+  CreateHostedZone: !Equals [!Ref HostedZoneId, ""]
 
 Resources:
+  HostedZone:
+    Type: AWS::Route53::HostedZone
+    Condition: CreateHostedZone
+    Properties:
+      Name: !Ref DomainName
+      HostedZoneConfig:
+        Comment: !Sub "Hosted zone for ${DomainName} (${EnvironmentName} environment)"
+      Tags:
+        - Key: Name
+          Value: !Sub "${DomainName}-hosted-zone"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: FindMyLunch
+
   # ACM Certificate for main domain and wildcard subdomains
   Certificate:
     Type: AWS::CertificateManager::Certificate
@@ -60,18 +83,16 @@ Resources:
       ValidationMethod: DNS
       DomainValidationOptions:
         - DomainName: !Ref DomainName
-          HostedZoneId:
-            Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
+          HostedZoneId: !If [CreateHostedZone, !Ref HostedZone, !Ref HostedZoneId]
         - DomainName: !Sub "*.${DomainName}"
-          HostedZoneId:
-            Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
+          HostedZoneId: !If [CreateHostedZone, !Ref HostedZone, !Ref HostedZoneId]
       Tags:
         - Key: Name
           Value: !Sub "${DomainName}-certificate"
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: FindMyLunch   
+          Value: FindMyLunch
 
   # API Gateway Certificate is now managed in a separate stack in us-east-1 region
 
@@ -380,6 +401,12 @@ Resources:
 
 Outputs:
   # Route53 and ACM Outputs
+  HostedZoneId:
+    Description: Route53 Hosted Zone ID
+    Value: !If [CreateHostedZone, !Ref HostedZone, !Ref HostedZoneId]
+    Export:
+      Name: !Sub ${EnvironmentName}-FindMyLunch-HostedZoneId
+
   CertificateArn:
     Description: ACM Certificate ARN for CloudFront
     Value: !Ref Certificate
