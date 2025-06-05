@@ -432,8 +432,6 @@ Resources:
         EnvironmentName: !Ref EnvironmentName
         DomainName: !Ref DomainName
         SubDomainPrefix: !Ref SubDomainPrefix
-        HostedZoneId:
-          Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-findmylunch-api-certificate-stack"
