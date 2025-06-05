@@ -95,19 +95,19 @@ Resources:
   ApiGatewayCertificate:
     Type: AWS::CertificateManager::Certificate
     Properties:
-      DomainName: !Sub "api.${DomainName}"
+      DomainName: "api.findmylunch.net"
       SubjectAlternativeNames: !If
         - IsProduction
         - []  # Empty list for production, no additional SANs needed
-        - !Sub "api.${SubDomainPrefix}.${DomainName}"  # Only add subdomain SAN for non-production
+        - !Sub "api.${SubDomainPrefix}.findmylunch.net"  # Only add subdomain SAN for non-production
       ValidationMethod: DNS
       DomainValidationOptions:
-        - DomainName: !Sub "api.${DomainName}"
+        - DomainName: !Sub "api.findmylunch.net"
           HostedZoneId: !Ref HostedZoneId
         - DomainName: !If
           - IsProduction
           - !Ref AWS::NoValue
-          - !Sub "api.${SubDomainPrefix}.${DomainName}"
+          - !Sub "api.${SubDomainPrefix}.findmylunch.net"
           HostedZoneId: !Ref HostedZoneId
       Tags:
         - Key: Name
