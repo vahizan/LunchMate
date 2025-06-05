@@ -46,11 +46,6 @@ Parameters:
     Type: String
     Default: 10.0.3.0/24
 
-  HostedZoneId:
-    Description: Hosted zone of domain in route 53
-    Type: String
-    Default: Z07994812FJYO57OI646Z
-
 Conditions:
   IsProduction: !Equals [!Ref EnvironmentName, "prod"]
 
@@ -95,23 +90,25 @@ Resources:
   ApiGatewayCertificate:
     Type: AWS::CertificateManager::Certificate
     Properties:
-      DomainName: "api.findmylunch.net"
+      DomainName: !Sub "api.${DomainName}"
       SubjectAlternativeNames: !If
         - IsProduction
         - []  # Empty list for production, no additional SANs needed
-        - !Sub "api.${SubDomainPrefix}.findmylunch.net"  # Only add subdomain SAN for non-production
+        - !Sub "api.${SubDomainPrefix}.${DomainName}"  # Only add subdomain SAN for non-production
       ValidationMethod: DNS
-      DomainValidationOptions:
-        - DomainName: !Sub "api.findmylunch.net"
-          HostedZoneId: !Ref HostedZoneId
-        - DomainName: !If
-          - IsProduction
-          - !Ref AWS::NoValue
-          - !Sub "api.${SubDomainPrefix}.findmylunch.net"
-          HostedZoneId: !Ref HostedZoneId
+      DomainValidationOptions: !If
+        - IsProduction
+        - # For production, only validate the main API domain
+          - DomainName: !Sub "api.${DomainName}"
+            HostedZoneId: !Ref HostedZone
+        - # For non-production, validate both domains
+          - DomainName: !Sub "api.${DomainName}"
+            HostedZoneId: !Ref HostedZone
+          - DomainName: !Sub "api.${SubDomainPrefix}.${DomainName}"
+            HostedZoneId: !Ref HostedZone
       Tags:
         - Key: Name
-          Value: !Sub "api.findmylunch-certificate"
+          Value: !Sub "api.${DomainName}-certificate"
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
