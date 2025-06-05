@@ -111,7 +111,7 @@ Resources:
           HostedZoneId: !Ref HostedZoneId
       Tags:
         - Key: Name
-          Value: !Sub "api.${DomainName}-certificate"
+          Value: !Sub "api.findmylunch-certificate"
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
