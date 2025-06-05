@@ -21,14 +21,25 @@ Parameters:
     Type: String
     Default: qa
 
-  HostedZoneId:
-    Description: Route53 Hosted Zone ID for the domain
-    Type: String
-
 Conditions:
   IsProduction: !Equals [!Ref EnvironmentName, "prod"]
 
 Resources:
+ # Route 53 Hosted Zone
+  HostedZone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref DomainName
+      HostedZoneConfig:
+        Comment: !Sub "Hosted zone for ${DomainName} (${EnvironmentName} environment)"
+      Tags:
+        - Key: Name
+          Value: !Sub "${DomainName}-hosted-zone"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: FindMyLunch
+
   # API Gateway Certificate (us-east-1 specific for API Gateway custom domains)
   ApiGatewayCertificate:
     Type: AWS::CertificateManager::Certificate
@@ -43,12 +54,12 @@ Resources:
         - IsProduction
         - # For production, only validate the main API domain
           - DomainName: !Sub "api.${DomainName}"
-            HostedZoneId: !Ref HostedZoneId
+            HostedZoneId: !Ref HostedZone
         - # For non-production, validate both domains
           - DomainName: !Sub "api.${DomainName}"
-            HostedZoneId: !Ref HostedZoneId
+            HostedZoneId: !Ref HostedZone
           - DomainName: !Sub "api.${SubDomainPrefix}.${DomainName}"
-            HostedZoneId: !Ref HostedZoneId
+            HostedZoneId: !Ref HostedZone
       Tags:
         - Key: Name
           Value: !Sub "api.${DomainName}-certificate"
