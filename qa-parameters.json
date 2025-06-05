@@ -44,6 +44,10 @@
     "ParameterValue": "Z07994812FJYO57OI646Z"
   },
   {
+    "ParameterKey": "CertificateRegion",
+    "ParameterValue": "us-east-1"
+  },
+  {
     "ParameterKey": "NodeJSVersion",
     "ParameterValue": "18.17.0"
   },
