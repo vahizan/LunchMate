@@ -303,7 +303,6 @@ jobs:
    deploy-networking:
      name: Deploy Networking Stack
      needs: [setup-cloudformation, deploy-base-networking, deploy-api-certificate]
-     needs: [setup-cloudformation]
      runs-on: ubuntu-latest
      environment: ${{ github.event.inputs.environment || 'qa' }}
      steps:
