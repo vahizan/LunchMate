@@ -46,8 +46,13 @@ Parameters:
     Type: String
     Default: 10.0.3.0/24
 
+  HostedZone:
+    Description: Hosted zone of domain in route 53
+    Type: String
+    Default: Z07994812FJYO57OI646Z
+
 Conditions:
-  IsProduction: !Equals [!Ref EnvironmentName, 'prod']
+  IsProduction: !Equals [!Ref EnvironmentName, "prod"]
 
 Resources:
   # Route 53 Hosted Zone
@@ -99,7 +104,10 @@ Resources:
       DomainValidationOptions:
         - DomainName: !Sub "api.${DomainName}"
           HostedZoneId: !Ref HostedZone
-        - DomainName: !If [IsProduction, !Ref AWS::NoValue, !Sub "api.${SubDomainPrefix}.${DomainName}"]
+        - DomainName: !If
+          - IsProduction
+          - !Ref AWS::NoValue
+          - !Sub "api.${SubDomainPrefix}.${DomainName}"
           HostedZoneId: !Ref HostedZone
       Tags:
         - Key: Name
