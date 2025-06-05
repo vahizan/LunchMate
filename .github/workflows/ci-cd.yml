@@ -412,14 +412,10 @@ jobs:
            STACK_NAME="findmylunch-${ENV}-api-certificate"
            PARAMS_FILE="${ENV}-parameters.json"
            
-           # Extract certificate parameters from the main parameters file (excluding HostedZoneId)
+           # Extract certificate parameters from the main parameters file
            jq '[.[] | select(.ParameterKey | test("^(EnvironmentName|DomainName|SubDomainPrefix)$"))]' $PARAMS_FILE > certificate-params.json
            
-           # Add the HostedZoneId from the networking stack
-           jq '. += [{"ParameterKey": "HostedZoneId", "ParameterValue": "'"$HOSTED_ZONE_ID"'"}]' certificate-params.json > certificate-params-temp.json
-           mv certificate-params-temp.json certificate-params.json
-           
-           # Check if stack exists
+           # Check if api-certificate stack exists
            if aws cloudformation describe-stacks --stack-name "$STACK_NAME" 2>/dev/null; then
              # Update existing stack
              aws cloudformation update-stack \

@@ -21,9 +21,7 @@ Parameters:
     Type: String
     Default: qa
 
-  HostedZoneId:
-    Description: Route53 Hosted Zone ID for the domain
-    Type: String
+  # HostedZoneId parameter removed as we're using automatic DNS validation
 
 Conditions:
   IsProduction: !Equals [!Ref EnvironmentName, "prod"]
@@ -39,16 +37,9 @@ Resources:
         - []  # Empty list for production, no additional SANs needed
         - !Sub "api.${SubDomainPrefix}.${DomainName}"  # Only add subdomain SAN for non-production
       ValidationMethod: DNS
-      DomainValidationOptions: !If
-        - IsProduction
-        - # For production, only validate the main API domain
-          - DomainName: !Sub "api.${DomainName}"
-            HostedZoneId: !Ref HostedZoneId
-        - # For non-production, validate both domains
-          - DomainName: !Sub "api.${DomainName}"
-            HostedZoneId: !Ref HostedZoneId
-          - DomainName: !Sub "api.${SubDomainPrefix}.${DomainName}"
-            HostedZoneId: !Ref HostedZoneId
+      # Use DNS validation without specifying HostedZoneId
+      # AWS will automatically create the validation records in Route53
+      # if the domain is managed by Route53 in the account
       Tags:
         - Key: Name
           Value: !Sub "api.${DomainName}-certificate"

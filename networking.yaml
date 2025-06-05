@@ -361,7 +361,7 @@ Resources:
         - IsProduction
         - !Sub "api.${DomainName}"
         - !Sub "api.${SubDomainPrefix}.${DomainName}"
-      CertificateArn:
+      RegionalCertificateArn:
         Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-ApiGatewayCertificateArn"
       EndpointConfiguration:
         Types:
