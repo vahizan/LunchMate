@@ -405,16 +405,41 @@ Mappings:
       EnhancedMonitoring: true
 
 Resources:
+  # Networking Stack (must be deployed first to create the hosted zone)
+  NetworkingStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/networking.yaml"
+      Parameters:
+        ArtifactBucketPrefix: !Ref ArtifactBucketPrefix
+        EnvironmentName: !Ref EnvironmentName
+        DomainName: !Ref DomainName
+        SubDomainPrefix: !Ref SubDomainPrefix
+        VpcCIDR: !Ref VpcCIDR
+        PublicSubnet1CIDR: !Ref PublicSubnet1CIDR
+        PublicSubnet2CIDR: !Ref PublicSubnet2CIDR
+        PrivateSubnet1CIDR: !Ref PrivateSubnet1CIDR
+        PrivateSubnet2CIDR: !Ref PrivateSubnet2CIDR
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-findmylunch-networking-stack"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: FindMyLunch
+
   # API Gateway Certificate Stack (us-east-1)
   ApiCertificateStack:
     Type: AWS::CloudFormation::Stack
+    DependsOn: NetworkingStack
     Properties:
       TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${CertificateRegion}.s3.amazonaws.com/templates/api-certificate.yaml"
       Parameters:
         EnvironmentName: !Ref EnvironmentName
         DomainName: !Ref DomainName
         SubDomainPrefix: !Ref SubDomainPrefix
-        HostedZoneId: !Ref HostedZoneId
+        HostedZoneId:
+          Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-findmylunch-api-certificate-stack"
@@ -439,28 +464,6 @@ Resources:
         - Key: Application
           Value: FindMyLunch
 
-  # Networking Stack
-  NetworkingStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/networking.yaml"
-      Parameters:
-        ArtifactBucketPrefix: !Ref ArtifactBucketPrefix
-        EnvironmentName: !Ref EnvironmentName
-        DomainName: !Ref DomainName
-        SubDomainPrefix: !Ref SubDomainPrefix
-        VpcCIDR: !Ref VpcCIDR
-        PublicSubnet1CIDR: !Ref PublicSubnet1CIDR
-        PublicSubnet2CIDR: !Ref PublicSubnet2CIDR
-        PrivateSubnet1CIDR: !Ref PrivateSubnet1CIDR
-        PrivateSubnet2CIDR: !Ref PrivateSubnet2CIDR
-      Tags:
-        - Key: Name
-          Value: !Sub "${EnvironmentName}-findmylunch-networking-stack"
-        - Key: Environment
-          Value: !Ref EnvironmentName
-        - Key: Application
-          Value: FindMyLunch
 
   # Database Stack
   DatabaseStack:

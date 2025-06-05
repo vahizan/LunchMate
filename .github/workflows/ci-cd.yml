@@ -249,82 +249,10 @@ jobs:
            # Reset region to original
            aws configure set region ${{ vars.AWS_REGION }}
 
-   # Deploy API Gateway Certificate stack in us-east-1 first
-   deploy-api-certificate:
-     name: Deploy API Gateway Certificate Stack
-     needs: setup-cloudformation
-     runs-on: ubuntu-latest
-     environment: ${{ github.event.inputs.environment || 'qa' }}
-     steps:
-       - name: Checkout code
-         uses: actions/checkout@v4
-
-       - name: Configure AWS credentials for us-east-1
-         uses: aws-actions/configure-aws-credentials@v4
-         with:
-           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-           aws-region: us-east-1
-
-       - name: Deploy API Certificate Stack
-         run: |
-           ENV="${{ needs.setup-cloudformation.outputs.env }}"
-           BUCKET_NAME="findmylunch-artifacts-${ENV}-us-east-1"
-           STACK_NAME="findmylunch-${ENV}-api-certificate"
-           PARAMS_FILE="${ENV}-parameters.json"
-           
-           # Extract certificate parameters from the main parameters file
-           jq '[.[] | select(.ParameterKey | test("^(EnvironmentName|DomainName|SubDomainPrefix|HostedZoneId)$"))]' $PARAMS_FILE > certificate-params.json
-           
-           # Check if stack exists
-           if aws cloudformation describe-stacks --stack-name "$STACK_NAME" 2>/dev/null; then
-             # Update existing stack
-             aws cloudformation update-stack \
-               --stack-name "$STACK_NAME" \
-               --template-url "https://${BUCKET_NAME}.s3.amazonaws.com/templates/api-certificate.yaml" \
-               --parameters file://certificate-params.json \
-               --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
-           else
-             # Create new stack
-             aws cloudformation create-stack \
-               --stack-name "$STACK_NAME" \
-               --template-url "https://${BUCKET_NAME}.s3.amazonaws.com/templates/api-certificate.yaml" \
-               --parameters file://certificate-params.json \
-               --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
-           fi
-           
-           # Wait for stack creation/update to complete
-           aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME" || \
-           aws cloudformation wait stack-update-complete --stack-name "$STACK_NAME"
-           
-           # Verify certificate validation status
-           echo "Checking certificate validation status..."
-           CERT_ARN=$(aws cloudformation describe-stacks \
-             --stack-name "$STACK_NAME" \
-             --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayCertificateArn'].OutputValue" \
-             --output text)
-             
-           if [ -n "$CERT_ARN" ]; then
-             VALIDATION_STATUS=$(aws acm describe-certificate \
-               --certificate-arn "$CERT_ARN" \
-               --query "Certificate.Status" \
-               --output text)
-               
-             echo "Certificate validation status: $VALIDATION_STATUS"
-             
-             if [ "$VALIDATION_STATUS" != "ISSUED" ]; then
-               echo "Certificate is not yet validated. You may need to add DNS validation records."
-               aws acm describe-certificate \
-                 --certificate-arn "$CERT_ARN" \
-                 --query "Certificate.DomainValidationOptions[].ResourceRecord" \
-                 --output json
-             fi
-           fi
-
-   # Deploy networking stack after API certificate
+   # Deploy networking stack first to create the hosted zone
    deploy-networking:
      name: Deploy Networking Stack
-     needs: [setup-cloudformation, deploy-api-certificate]
+     needs: [setup-cloudformation]
      runs-on: ubuntu-latest
      environment: ${{ github.event.inputs.environment || 'qa' }}
      steps:
@@ -392,6 +320,99 @@ jobs:
                  --output json
              fi
            fi
+           
+  # Deploy API Gateway Certificate stack in us-east-1 after networking
+   deploy-api-certificate:
+     name: Deploy API Gateway Certificate Stack
+     needs: [setup-cloudformation,deploy-networking]
+     runs-on: ubuntu-latest
+     environment: ${{ github.event.inputs.environment || 'qa' }}
+     steps:
+       - name: Checkout code
+         uses: actions/checkout@v4
+
+       - name: Configure AWS credentials for us-east-1
+         uses: aws-actions/configure-aws-credentials@v4
+         with:
+           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+           aws-region: us-east-1
+
+       - name: Get Hosted Zone ID from Networking Stack
+         run: |
+           ENV="${{ needs.setup-cloudformation.outputs.env }}"
+           # Configure AWS credentials for main region to get the hosted zone ID
+           aws configure set region ${{ vars.AWS_REGION }}
+           
+           # Get the hosted zone ID from the networking stack
+           HOSTED_ZONE_ID=$(aws cloudformation describe-stacks \
+             --stack-name "findmylunch-${ENV}-networking" \
+             --query "Stacks[0].Outputs[?OutputKey=='HostedZoneId'].OutputValue" \
+             --output text)
+           
+           echo "HOSTED_ZONE_ID=$HOSTED_ZONE_ID" >> $GITHUB_ENV
+           
+           # Reset region to us-east-1 for certificate creation
+           aws configure set region us-east-1
+
+       - name: Deploy API Certificate Stack
+         run: |
+           ENV="${{ needs.setup-cloudformation.outputs.env }}"
+           BUCKET_NAME="findmylunch-artifacts-${ENV}-us-east-1"
+           STACK_NAME="findmylunch-${ENV}-api-certificate"
+           PARAMS_FILE="${ENV}-parameters.json"
+           
+           # Extract certificate parameters from the main parameters file (excluding HostedZoneId)
+           jq '[.[] | select(.ParameterKey | test("^(EnvironmentName|DomainName|SubDomainPrefix)$"))]' $PARAMS_FILE > certificate-params.json
+           
+           # Add the HostedZoneId from the networking stack
+           jq '. += [{"ParameterKey": "HostedZoneId", "ParameterValue": "'"$HOSTED_ZONE_ID"'"}]' certificate-params.json > certificate-params-temp.json
+           mv certificate-params-temp.json certificate-params.json
+           
+           # Check if stack exists
+           if aws cloudformation describe-stacks --stack-name "$STACK_NAME" 2>/dev/null; then
+             # Update existing stack
+             aws cloudformation update-stack \
+               --stack-name "$STACK_NAME" \
+               --template-url "https://${BUCKET_NAME}.s3.amazonaws.com/templates/api-certificate.yaml" \
+               --parameters file://certificate-params.json \
+               --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
+           else
+             # Create new stack
+             aws cloudformation create-stack \
+               --stack-name "$STACK_NAME" \
+               --template-url "https://${BUCKET_NAME}.s3.amazonaws.com/templates/api-certificate.yaml" \
+               --parameters file://certificate-params.json \
+               --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
+           fi
+           
+           # Wait for stack creation/update to complete
+           aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME" || \
+           aws cloudformation wait stack-update-complete --stack-name "$STACK_NAME"
+           
+           # Verify certificate validation status
+           echo "Checking certificate validation status..."
+           CERT_ARN=$(aws cloudformation describe-stacks \
+             --stack-name "$STACK_NAME" \
+             --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayCertificateArn'].OutputValue" \
+             --output text)
+             
+           if [ -n "$CERT_ARN" ]; then
+             VALIDATION_STATUS=$(aws acm describe-certificate \
+               --certificate-arn "$CERT_ARN" \
+               --query "Certificate.Status" \
+               --output text)
+               
+             echo "Certificate validation status: $VALIDATION_STATUS"
+             
+             if [ "$VALIDATION_STATUS" != "ISSUED" ]; then
+               echo "Certificate is not yet validated. You may need to add DNS validation records."
+               aws acm describe-certificate \
+                 --certificate-arn "$CERT_ARN" \
+                 --query "Certificate.DomainValidationOptions[].ResourceRecord" \
+                 --output json
+             fi
+           fi         
 
    # Deploy database stack after networking
    deploy-database:
