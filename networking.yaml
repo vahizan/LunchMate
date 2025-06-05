@@ -50,21 +50,6 @@ Conditions:
   IsProduction: !Equals [!Ref EnvironmentName, "prod"]
 
 Resources:
-  # Route 53 Hosted Zone
-  HostedZone:
-    Type: AWS::Route53::HostedZone
-    Properties:
-      Name: !Ref DomainName
-      HostedZoneConfig:
-        Comment: !Sub "Hosted zone for ${DomainName} (${EnvironmentName} environment)"
-      Tags:
-        - Key: Name
-          Value: !Sub "${DomainName}-hosted-zone"
-        - Key: Environment
-          Value: !Ref EnvironmentName
-        - Key: Application
-          Value: FindMyLunch
-
   # ACM Certificate for main domain and wildcard subdomains
   Certificate:
     Type: AWS::CertificateManager::Certificate
@@ -75,9 +60,11 @@ Resources:
       ValidationMethod: DNS
       DomainValidationOptions:
         - DomainName: !Ref DomainName
-          HostedZoneId: !Ref HostedZone
+          HostedZoneId:
+            Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
         - DomainName: !Sub "*.${DomainName}"
-          HostedZoneId: !Ref HostedZone
+          HostedZoneId:
+            Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
       Tags:
         - Key: Name
           Value: !Sub "${DomainName}-certificate"
@@ -393,12 +380,6 @@ Resources:
 
 Outputs:
   # Route53 and ACM Outputs
-  HostedZoneId:
-    Description: Route53 Hosted Zone ID
-    Value: !Ref HostedZone
-    Export:
-      Name: !Sub ${EnvironmentName}-FindMyLunch-HostedZoneId
-
   CertificateArn:
     Description: ACM Certificate ARN for CloudFront
     Value: !Ref Certificate

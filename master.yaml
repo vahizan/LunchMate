@@ -405,9 +405,47 @@ Mappings:
       EnhancedMonitoring: true
 
 Resources:
-  # Networking Stack (must be deployed first to create the hosted zone)
+  # Base Networking Stack (creates the hosted zone first)
+  BaseNetworkingStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/base-networking.yaml"
+      Parameters:
+        ArtifactBucketPrefix: !Ref ArtifactBucketPrefix
+        EnvironmentName: !Ref EnvironmentName
+        DomainName: !Ref DomainName
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-findmylunch-base-networking-stack"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: FindMyLunch
+
+  # API Gateway Certificate Stack (us-east-1)
+  ApiCertificateStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: BaseNetworkingStack
+    Properties:
+      TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${CertificateRegion}.s3.amazonaws.com/templates/api-certificate.yaml"
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        DomainName: !Ref DomainName
+        SubDomainPrefix: !Ref SubDomainPrefix
+        HostedZoneId:
+          Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-findmylunch-api-certificate-stack"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: FindMyLunch
+
+  # Networking Stack (depends on ApiCertificateStack for the certificate ARN)
   NetworkingStack:
     Type: AWS::CloudFormation::Stack
+    DependsOn: ApiCertificateStack
     Properties:
       TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/networking.yaml"
       Parameters:
@@ -423,26 +461,6 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-findmylunch-networking-stack"
-        - Key: Environment
-          Value: !Ref EnvironmentName
-        - Key: Application
-          Value: FindMyLunch
-
-  # API Gateway Certificate Stack (us-east-1)
-  ApiCertificateStack:
-    Type: AWS::CloudFormation::Stack
-    DependsOn: NetworkingStack
-    Properties:
-      TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${CertificateRegion}.s3.amazonaws.com/templates/api-certificate.yaml"
-      Parameters:
-        EnvironmentName: !Ref EnvironmentName
-        DomainName: !Ref DomainName
-        SubDomainPrefix: !Ref SubDomainPrefix
-        HostedZoneId:
-          Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
-      Tags:
-        - Key: Name
-          Value: !Sub "${EnvironmentName}-findmylunch-api-certificate-stack"
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
@@ -468,7 +486,9 @@ Resources:
   # Database Stack
   DatabaseStack:
     Type: AWS::CloudFormation::Stack
-    DependsOn: NetworkingStack
+    DependsOn:
+      - NetworkingStack
+      - ApiCertificateStack
     Properties:
       TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/database.yaml"
       Parameters:
