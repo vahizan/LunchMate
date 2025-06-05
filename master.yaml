@@ -133,6 +133,11 @@ Parameters:
   AWSRegion:
     Description: AWS Region where resources will be deployed
     Type: String
+    Default: eu-west-1
+    
+  CertificateRegion:
+    Description: AWS Region where API Gateway certificate will be deployed (must be us-east-1 for API Gateway custom domains)
+    Type: String
     Default: us-east-1
   
   ArtifactBucketPrefix:
@@ -400,6 +405,24 @@ Mappings:
       EnhancedMonitoring: true
 
 Resources:
+  # API Gateway Certificate Stack (us-east-1)
+  ApiCertificateStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${CertificateRegion}.s3.amazonaws.com/templates/api-certificate.yaml"
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        DomainName: !Ref DomainName
+        SubDomainPrefix: !Ref SubDomainPrefix
+        HostedZoneId: !Ref HostedZoneId
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-findmylunch-api-certificate-stack"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: FindMyLunch
+
   # Secrets Manager for Database Credentials and Environment Variables
   SecretsManagerSecret:
     Type: AWS::SecretsManager::Secret
@@ -469,9 +492,10 @@ Resources:
   # Backend Stack
   BackendStack:
     Type: AWS::CloudFormation::Stack
-    DependsOn: 
+    DependsOn:
       - NetworkingStack
       - DatabaseStack
+      - ApiCertificateStack
     Properties:
       TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/backend.yaml"
       Parameters:
@@ -490,7 +514,7 @@ Resources:
         SecretsManagerARN: !Ref SecretsManagerSecret
         SSLCertificateARN: !Ref SSLCertificateARN
         ApiGatewayCertificateARN:
-          Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-ApiGatewayCertificateArn"
+          Fn::GetAtt: [ApiCertificateStack, Outputs.ApiGatewayCertificateArn]
         HostedZoneId:
           Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
       Tags:

@@ -84,79 +84,9 @@ Resources:
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: FindMyLunch
+          Value: FindMyLunch   
 
-  # DNS records for certificate validation
-  CertificateDNSRecords:
-    Type: AWS::Route53::RecordSetGroup
-    DependsOn: Certificate
-    Properties:
-      HostedZoneId: !Ref HostedZone
-      RecordSets:
-        - Name: !GetAtt Certificate.DomainValidationOptions.0.ResourceRecord.Name
-          Type: !GetAtt Certificate.DomainValidationOptions.0.ResourceRecord.Type
-          TTL: 60
-          ResourceRecords:
-            - !GetAtt Certificate.DomainValidationOptions.0.ResourceRecord.Value
-        - Name: !GetAtt Certificate.DomainValidationOptions.1.ResourceRecord.Name
-          Type: !GetAtt Certificate.DomainValidationOptions.1.ResourceRecord.Type
-          TTL: 60
-          ResourceRecords:
-            - !GetAtt Certificate.DomainValidationOptions.1.ResourceRecord.Value
-
-  # API Gateway Certificate (us-east-1 specific for API Gateway custom domains)
-  ApiGatewayCertificate:
-    Type: AWS::CertificateManager::Certificate
-    Properties:
-      DomainName: !Sub "api.${DomainName}"
-      SubjectAlternativeNames: !If
-        - IsProduction
-        - []  # Empty list for production, no additional SANs needed
-        - !Sub "api.${SubDomainPrefix}.${DomainName}"  # Only add subdomain SAN for non-production
-      ValidationMethod: DNS
-      DomainValidationOptions: !If
-        - IsProduction
-        - # For production, only validate the main API domain
-          - DomainName: !Sub "api.${DomainName}"
-            HostedZoneId: !Ref HostedZone
-        - # For non-production, validate both domains
-          - DomainName: !Sub "api.${DomainName}"
-            HostedZoneId: !Ref HostedZone
-          - DomainName: !Sub "api.${SubDomainPrefix}.${DomainName}"
-            HostedZoneId: !Ref HostedZone
-      Tags:
-        - Key: Name
-          Value: !Sub "api.${DomainName}-certificate"
-        - Key: Environment
-          Value: !Ref EnvironmentName
-        - Key: Application
-          Value: FindMyLunch
-
-  # DNS records for API Gateway certificate validation
-  ApiGatewayCertificateDNSRecords:
-    Type: AWS::Route53::RecordSetGroup
-    DependsOn: ApiGatewayCertificate
-    Properties:
-      HostedZoneId: !Ref HostedZone
-      RecordSets: !If
-        - IsProduction
-        - # For production, only one validation record
-          - Name: !GetAtt ApiGatewayCertificate.DomainValidationOptions.0.ResourceRecord.Name
-            Type: !GetAtt ApiGatewayCertificate.DomainValidationOptions.0.ResourceRecord.Type
-            TTL: 60
-            ResourceRecords:
-              - !GetAtt ApiGatewayCertificate.DomainValidationOptions.0.ResourceRecord.Value
-        - # For non-production, two validation records
-          - Name: !GetAtt ApiGatewayCertificate.DomainValidationOptions.0.ResourceRecord.Name
-            Type: !GetAtt ApiGatewayCertificate.DomainValidationOptions.0.ResourceRecord.Type
-            TTL: 60
-            ResourceRecords:
-              - !GetAtt ApiGatewayCertificate.DomainValidationOptions.0.ResourceRecord.Value
-          - Name: !GetAtt ApiGatewayCertificate.DomainValidationOptions.1.ResourceRecord.Name
-            Type: !GetAtt ApiGatewayCertificate.DomainValidationOptions.1.ResourceRecord.Type
-            TTL: 60
-            ResourceRecords:
-              - !GetAtt ApiGatewayCertificate.DomainValidationOptions.1.ResourceRecord.Value
+  # API Gateway Certificate is now managed in a separate stack in us-east-1 region
 
   # VPC
   VPC:
@@ -444,7 +374,8 @@ Resources:
         - IsProduction
         - !Sub "api.${DomainName}"
         - !Sub "api.${SubDomainPrefix}.${DomainName}"
-      CertificateArn: !Ref ApiGatewayCertificate
+      CertificateArn:
+        Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-ApiGatewayCertificateArn"
       EndpointConfiguration:
         Types:
           - REGIONAL
@@ -474,11 +405,7 @@ Outputs:
     Export:
       Name: !Sub ${EnvironmentName}-FindMyLunch-CertificateArn
 
-  ApiGatewayCertificateArn:
-    Description: ACM Certificate ARN for API Gateway
-    Value: !Ref ApiGatewayCertificate
-    Export:
-      Name: !Sub ${EnvironmentName}-FindMyLunch-ApiGatewayCertificateArn
+  # ApiGatewayCertificateArn is now exported from the us-east-1 certificate stack
 
   ApiGatewayDomainNameOutput:
     Description: API Gateway custom domain name
