@@ -84,7 +84,25 @@ Resources:
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: FindMyLunch   
+          Value: FindMyLunch
+
+  # DNS records for certificate validation
+  CertificateDNSRecords:
+    Type: AWS::Route53::RecordSetGroup
+    DependsOn: Certificate
+    Properties:
+      HostedZoneId: !Ref HostedZone
+      RecordSets:
+        - Name: !GetAtt Certificate.DomainValidationOptions.0.ResourceRecord.Name
+          Type: !GetAtt Certificate.DomainValidationOptions.0.ResourceRecord.Type
+          TTL: 60
+          ResourceRecords:
+            - !GetAtt Certificate.DomainValidationOptions.0.ResourceRecord.Value
+        - Name: !GetAtt Certificate.DomainValidationOptions.1.ResourceRecord.Name
+          Type: !GetAtt Certificate.DomainValidationOptions.1.ResourceRecord.Type
+          TTL: 60
+          ResourceRecords:
+            - !GetAtt Certificate.DomainValidationOptions.1.ResourceRecord.Value
 
   # API Gateway Certificate (us-east-1 specific for API Gateway custom domains)
   ApiGatewayCertificate:
@@ -113,6 +131,32 @@ Resources:
           Value: !Ref EnvironmentName
         - Key: Application
           Value: FindMyLunch
+
+  # DNS records for API Gateway certificate validation
+  ApiGatewayCertificateDNSRecords:
+    Type: AWS::Route53::RecordSetGroup
+    DependsOn: ApiGatewayCertificate
+    Properties:
+      HostedZoneId: !Ref HostedZone
+      RecordSets: !If
+        - IsProduction
+        - # For production, only one validation record
+          - Name: !GetAtt ApiGatewayCertificate.DomainValidationOptions.0.ResourceRecord.Name
+            Type: !GetAtt ApiGatewayCertificate.DomainValidationOptions.0.ResourceRecord.Type
+            TTL: 60
+            ResourceRecords:
+              - !GetAtt ApiGatewayCertificate.DomainValidationOptions.0.ResourceRecord.Value
+        - # For non-production, two validation records
+          - Name: !GetAtt ApiGatewayCertificate.DomainValidationOptions.0.ResourceRecord.Name
+            Type: !GetAtt ApiGatewayCertificate.DomainValidationOptions.0.ResourceRecord.Type
+            TTL: 60
+            ResourceRecords:
+              - !GetAtt ApiGatewayCertificate.DomainValidationOptions.0.ResourceRecord.Value
+          - Name: !GetAtt ApiGatewayCertificate.DomainValidationOptions.1.ResourceRecord.Name
+            Type: !GetAtt ApiGatewayCertificate.DomainValidationOptions.1.ResourceRecord.Type
+            TTL: 60
+            ResourceRecords:
+              - !GetAtt ApiGatewayCertificate.DomainValidationOptions.1.ResourceRecord.Value
 
   # VPC
   VPC:
