@@ -1,5 +1,5 @@
 /**
- * Centralized Configuration for LunchMate Web Scraping System
+ * Centralized Configuration for FindMyLunch Web Scraping System
  * 
  * This module provides a centralized configuration for all components of the
  * web scraping system, including the Scraper Service, Proxy Manager, Scheduler,
@@ -176,7 +176,7 @@ const schedulerConfigSchema = z.object({
  * Validation schema for crowd data repository configuration
  */
 const crowdDataRepositoryConfigSchema = z.object({
-  databaseUrl: z.string().default('postgresql://postgres:postgres@localhost:5432/lunchmate'),
+  databaseUrl: z.string().default('postgresql://postgres:postgres@localhost:5432/findmylunch'),
   ttl: z.number().int().positive().default(86400000), // 24 hours
   maxHistoricalRecords: z.number().int().positive().default(100),
   cleanupInterval: z.string().default('0 0 * * *') // Daily at midnight
@@ -297,7 +297,7 @@ export function loadSchedulerConfig(): SchedulerConfig {
  * Load and validate crowd data repository configuration
  */
 export function loadCrowdDataRepositoryConfig(): CrowdDataRepositoryConfig {
-  const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/lunchmate';
+  const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/findmylunch';
   const ttl = parseInt(process.env.CROWD_DATA_TTL || '86400000', 10);
   const maxHistoricalRecords = parseInt(process.env.CROWD_DATA_MAX_HISTORICAL_RECORDS || '100', 10);
   const cleanupInterval = process.env.CROWD_DATA_CLEANUP_INTERVAL || '0 0 * * *';
