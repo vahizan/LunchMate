@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'FindMyLunch Application - Networking Infrastructure (Nested Stack)'
+Description: 'FindMyLunch Application - Consolidated Networking Infrastructure (us-east-1)'
 
 Parameters:
   EnvironmentName:
@@ -20,6 +20,14 @@ Parameters:
     Description: Subdomain prefix for non-production environments (e.g., qa)
     Type: String
     Default: qa
+    
+  CreatePrivateHostedZones:
+    Description: Whether to create private hosted zones (true for non-production, false for production)
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
 
   VpcCIDR:
     Description: CIDR block for the VPC
@@ -49,31 +57,77 @@ Parameters:
 Conditions:
   IsProduction: !Equals [!Ref EnvironmentName, "prod"]
 
+
 Resources:
+  # Route 53 Hosted Zones
+  MainHostedZone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref DomainName
+      HostedZoneConfig:
+        Comment: !Sub "Main hosted zone for ${DomainName} (${EnvironmentName} environment)"
+      Tags:
+        - Key: Name
+          Value: !Sub "${DomainName}-hosted-zone"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: FindMyLunch
+
+  ApiHostedZone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Sub "api.${DomainName}"
+      HostedZoneConfig:
+        Comment: !Sub "API hosted zone for api.${DomainName} (${EnvironmentName} environment)"
+      Tags:
+        - Key: Name
+          Value: !Sub "api.${DomainName}-hosted-zone"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: FindMyLunch
+
   # ACM Certificate for main domain and wildcard subdomains
   Certificate:
     Type: AWS::CertificateManager::Certificate
     Properties:
       DomainName: !Ref DomainName
-      SubjectAlternativeNames:
-        - !Sub "*.${DomainName}"
+      SubjectAlternativeNames: !If
+        - IsProduction
+        - []  # Empty list for production, no additional SANs needed
+        - !Sub "${SubDomainPrefix}.${DomainName}"  # Only add subdomain SAN for non-production
       ValidationMethod: DNS
       DomainValidationOptions:
         - DomainName: !Ref DomainName
-          HostedZoneId:
-            Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
-        - DomainName: !Sub "*.${DomainName}"
-          HostedZoneId:
-            Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
+          HostedZoneId: !Ref MainHostedZone
+        - DomainName: !Sub "${SubDomainPrefix}.${DomainName}"
+          HostedZoneId: !Ref MainHostedZone
       Tags:
         - Key: Name
           Value: !Sub "${DomainName}-certificate"
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Application
-          Value: FindMyLunch   
+          Value: FindMyLunch
 
-  # API Gateway Certificate is now managed in a separate stack in us-east-1 region
+  # API Gateway Certificate (us-east-1 specific for API Gateway custom domains)
+  ApiGatewayCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Sub "api.${DomainName}"
+      SubjectAlternativeNames: !If
+        - IsProduction
+        - []  # Empty list for production, no additional SANs needed
+        - !Sub "api.${SubDomainPrefix}.${DomainName}"  # Only add subdomain SAN for non-production
+      ValidationMethod: DNS
+      Tags:
+        - Key: Name
+          Value: !Sub "api.${DomainName}-certificate"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: FindMyLunch
 
   # VPC
   VPC:
@@ -361,11 +415,10 @@ Resources:
         - IsProduction
         - !Sub "api.${DomainName}"
         - !Sub "api.${SubDomainPrefix}.${DomainName}"
-      RegionalCertificateArn:
-        Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-ApiGatewayCertificateArn"
+      CertificateArn: !Ref ApiGatewayCertificate
       EndpointConfiguration:
         Types:
-          - REGIONAL
+          - EDGE
       SecurityPolicy: TLS_1_2
       Tags:
         - Key: Name
@@ -380,31 +433,35 @@ Resources:
 
 Outputs:
   # Route53 and ACM Outputs
+  MainHostedZoneId:
+    Description: Main Route53 Hosted Zone ID
+    Value: !Ref MainHostedZone
+    Export:
+      Name: !Sub ${EnvironmentName}-FindMyLunch-MainHostedZoneId
+      
+  ApiHostedZoneId:
+    Description: API Route53 Hosted Zone ID
+    Value: !Ref ApiHostedZone
+    Export:
+      Name: !Sub ${EnvironmentName}-FindMyLunch-ApiHostedZoneId
+
   CertificateArn:
     Description: ACM Certificate ARN for CloudFront
     Value: !Ref Certificate
     Export:
       Name: !Sub ${EnvironmentName}-FindMyLunch-CertificateArn
 
-  # ApiGatewayCertificateArn is now exported from the us-east-1 certificate stack
+  ApiGatewayCertificateArn:
+    Description: ACM Certificate ARN for API Gateway
+    Value: !Ref ApiGatewayCertificate
+    Export:
+      Name: !Sub "${EnvironmentName}-FindMyLunch-ApiGatewayCertificateArn"
 
   ApiGatewayDomainNameOutput:
     Description: API Gateway custom domain name
     Value: !Ref ApiGatewayDomainName
     Export:
       Name: !Sub ${EnvironmentName}-FindMyLunch-ApiGatewayDomainName
-
-  ApiGatewayRegionalDomainName:
-    Description: API Gateway regional domain name
-    Value: !GetAtt ApiGatewayDomainName.RegionalDomainName
-    Export:
-      Name: !Sub ${EnvironmentName}-FindMyLunch-ApiGatewayRegionalDomainName
-
-  ApiGatewayRegionalHostedZoneId:
-    Description: API Gateway regional hosted zone ID
-    Value: !GetAtt ApiGatewayDomainName.RegionalHostedZoneId
-    Export:
-      Name: !Sub ${EnvironmentName}-FindMyLunch-ApiGatewayRegionalHostedZoneId
 
   DomainNameOutput:
     Description: Domain name
@@ -478,3 +535,4 @@ Outputs:
     Value: !Ref VpcCIDR
     Export:
       Name: !Sub ${EnvironmentName}-FindMyLunch-VpcCidr
+

@@ -1,6 +1,7 @@
 node_modules
 .env*
 .env
+networking-params.json
 .vscode/
 coverage/
 dist/

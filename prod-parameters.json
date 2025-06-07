@@ -5,7 +5,7 @@
   },
   {
     "ParameterKey": "AWSRegion",
-    "ParameterValue": "eu-west-1"
+    "ParameterValue": "us-east-1"
   },
   {
     "ParameterKey": "VpcCIDR",
@@ -34,6 +34,10 @@
   {
     "ParameterKey": "SubDomainPrefix",
     "ParameterValue": "www"
+  },
+  {
+    "ParameterKey": "CreatePrivateHostedZones",
+    "ParameterValue": "false"
   },
   {
     "ParameterKey": "CreateRoute53Records",
@@ -73,7 +77,7 @@
   },
   {
     "ParameterKey": "SSLCertificateARN",
-    "ParameterValue": "arn:aws:acm:eu-west-1:123456789012:certificate/findmylunch-prod"
+    "ParameterValue": "arn:aws:acm:us-east-1:123456789012:certificate/findmylunch-prod"
   },
   {
     "ParameterKey": "DBInstanceClass",

@@ -224,12 +224,10 @@ jobs:
            aws s3 cp master.yaml "s3://$BUCKET_NAME/templates/"
            aws s3 cp backend.yaml "s3://$BUCKET_NAME/templates/"
            aws s3 cp frontend.yaml "s3://$BUCKET_NAME/templates/"
-           aws s3 cp base-networking.yaml "s3://$BUCKET_NAME/templates/"
            aws s3 cp networking.yaml "s3://$BUCKET_NAME/templates/"
            aws s3 cp database.yaml "s3://$BUCKET_NAME/templates/"
-           aws s3 cp api-certificate.yaml "s3://$BUCKET_NAME/templates/"
            
-           # Create us-east-1 bucket for API Gateway certificate if it doesn't exist
+           # Create us-east-1 bucket for networking template if it doesn't exist
            ENV="${{ steps.set-env.outputs.env }}"
            US_EAST_BUCKET_NAME="findmylunch-artifacts-${ENV}-us-east-1"
            
@@ -244,16 +242,15 @@ jobs:
            # Create templates directory in us-east-1 S3 bucket
            aws s3api put-object --bucket "$US_EAST_BUCKET_NAME" --key "templates/"
            
-           # Upload base-networking and API certificate templates to us-east-1 bucket
-           aws s3 cp base-networking.yaml "s3://$US_EAST_BUCKET_NAME/templates/"
-           aws s3 cp api-certificate.yaml "s3://$US_EAST_BUCKET_NAME/templates/"
+           # Upload networking template to us-east-1 bucket (contains API Gateway certificate)
+           aws s3 cp networking.yaml "s3://$US_EAST_BUCKET_NAME/templates/"
            
            # Reset region to original
            aws configure set region ${{ vars.AWS_REGION }}
 
-   # Deploy base-networking stack first to create the hosted zone
-   deploy-base-networking:
-     name: Deploy Base Networking Stack
+   # Deploy networking stack (consolidated from base-networking and api-certificate)
+   deploy-networking:
+     name: Deploy Networking Stack
      needs: [setup-cloudformation]
      runs-on: ubuntu-latest
      environment: ${{ github.event.inputs.environment || 'qa' }}
@@ -268,63 +265,43 @@ jobs:
            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
            aws-region: ${{ vars.AWS_REGION }}
 
-       - name: Deploy Base Networking Stack
+       - name: Configure AWS credentials for us-east-1
+         uses: aws-actions/configure-aws-credentials@v4
+         with:
+           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+           aws-region: us-east-1
+
+       - name: Deploy Networking Stack in us-east-1
          run: |
            ENV="${{ needs.setup-cloudformation.outputs.env }}"
-           BUCKET_NAME="${{ needs.setup-cloudformation.outputs.bucket_name }}"
-           STACK_NAME="findmylunch-${ENV}-base-networking"
+           US_EAST_BUCKET_NAME="findmylunch-artifacts-${ENV}-us-east-1"
+           STACK_NAME="findmylunch-${ENV}-networking"
            PARAMS_FILE="${ENV}-parameters.json"
            
-           # Extract base networking parameters from the main parameters file
-           jq '[.[] | select(.ParameterKey | test("^(EnvironmentName|DomainName|ArtifactBucketPrefix)$"))]' $PARAMS_FILE > base-networking-params.json
+           # Extract networking parameters from the main parameters file
+           jq '[.[] | select(.ParameterKey | test("^(EnvironmentName|DomainName|SubDomainPrefix|VpcCIDR|PublicSubnet1CIDR|PublicSubnet2CIDR|PrivateSubnet1CIDR|PrivateSubnet2CIDR|ArtifactBucketPrefix)$"))]' $PARAMS_FILE > networking-params.json
            
            # Check if stack exists
            if aws cloudformation describe-stacks --stack-name "$STACK_NAME" 2>/dev/null; then
              # Update existing stack
              aws cloudformation update-stack \
                --stack-name "$STACK_NAME" \
-               --template-url "https://${BUCKET_NAME}.s3.amazonaws.com/templates/base-networking.yaml" \
-               --parameters file://base-networking-params.json \
+               --template-url "https://${US_EAST_BUCKET_NAME}.s3.amazonaws.com/templates/networking.yaml" \
+               --parameters file://networking-params.json \
                --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
            else
              # Create new stack
              aws cloudformation create-stack \
                --stack-name "$STACK_NAME" \
-               --template-url "https://${BUCKET_NAME}.s3.amazonaws.com/templates/base-networking.yaml" \
-               --parameters file://base-networking-params.json \
+               --template-url "https://${US_EAST_BUCKET_NAME}.s3.amazonaws.com/templates/networking.yaml" \
+               --parameters file://networking-params.json \
                --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
            fi
            
            # Wait for stack creation/update to complete
            aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME" || \
            aws cloudformation wait stack-update-complete --stack-name "$STACK_NAME"
-
-   # Deploy networking stack after base-networking and api-certificate
-   deploy-networking:
-     name: Deploy Networking Stack
-     needs: [setup-cloudformation, deploy-base-networking, deploy-api-certificate]
-     runs-on: ubuntu-latest
-     environment: ${{ github.event.inputs.environment || 'qa' }}
-     steps:
-       - name: Checkout code
-         uses: actions/checkout@v4
-
-       - name: Configure AWS credentials
-         uses: aws-actions/configure-aws-credentials@v4
-         with:
-           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-           aws-region: ${{ vars.AWS_REGION }}
-
-       - name: Deploy Networking Stack
-         run: |
-           ENV="${{ needs.setup-cloudformation.outputs.env }}"
-           BUCKET_NAME="${{ needs.setup-cloudformation.outputs.bucket_name }}"
-           STACK_NAME="findmylunch-${ENV}-networking"
-           PARAMS_FILE="${ENV}-parameters.json"
-           
-           # Extract networking parameters from the main parameters file
-           jq '[.[] | select(.ParameterKey | test("^(EnvironmentName|DomainName|SubDomainPrefix|VpcCIDR|PublicSubnet1CIDR|PublicSubnet2CIDR|PrivateSubnet1CIDR|PrivateSubnet2CIDR)$"))]' $PARAMS_FILE > networking-params.json
            
            # Check if stack exists
            if aws cloudformation describe-stacks --stack-name "$STACK_NAME" 2>/dev/null; then
@@ -371,94 +348,6 @@ jobs:
              fi
            fi
            
-  # Deploy API Gateway Certificate stack in us-east-1 after networking
-   deploy-api-certificate:
-     name: Deploy API Gateway Certificate Stack
-     needs: [setup-cloudformation,deploy-base-networking]
-     runs-on: ubuntu-latest
-     environment: ${{ github.event.inputs.environment || 'qa' }}
-     steps:
-       - name: Checkout code
-         uses: actions/checkout@v4
-
-       - name: Configure AWS credentials for us-east-1
-         uses: aws-actions/configure-aws-credentials@v4
-         with:
-           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-           aws-region: us-east-1
-
-       - name: Get Hosted Zone ID from Networking Stack
-         run: |
-           ENV="${{ needs.setup-cloudformation.outputs.env }}"
-           # Configure AWS credentials for main region to get the hosted zone ID
-           aws configure set region ${{ vars.AWS_REGION }}
-           
-           # Get the hosted zone ID from the base-networking stack
-           HOSTED_ZONE_ID=$(aws cloudformation describe-stacks \
-             --stack-name "findmylunch-${ENV}-base-networking" \
-             --query "Stacks[0].Outputs[?OutputKey=='HostedZoneId'].OutputValue" \
-             --output text)
-           
-           echo "HOSTED_ZONE_ID=$HOSTED_ZONE_ID" >> $GITHUB_ENV
-           
-           # Reset region to us-east-1 for certificate creation
-           aws configure set region us-east-1
-
-       - name: Deploy API Certificate Stack
-         run: |
-           ENV="${{ needs.setup-cloudformation.outputs.env }}"
-           BUCKET_NAME="findmylunch-artifacts-${ENV}-us-east-1"
-           STACK_NAME="findmylunch-${ENV}-api-certificate"
-           PARAMS_FILE="${ENV}-parameters.json"
-           
-           # Extract certificate parameters from the main parameters file
-           jq '[.[] | select(.ParameterKey | test("^(EnvironmentName|DomainName|SubDomainPrefix)$"))]' $PARAMS_FILE > certificate-params.json
-           
-           # Check if api-certificate stack exists
-           if aws cloudformation describe-stacks --stack-name "$STACK_NAME" 2>/dev/null; then
-             # Update existing stack
-             aws cloudformation update-stack \
-               --stack-name "$STACK_NAME" \
-               --template-url "https://${BUCKET_NAME}.s3.amazonaws.com/templates/api-certificate.yaml" \
-               --parameters file://certificate-params.json \
-               --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
-           else
-             # Create new stack
-             aws cloudformation create-stack \
-               --stack-name "$STACK_NAME" \
-               --template-url "https://${BUCKET_NAME}.s3.amazonaws.com/templates/api-certificate.yaml" \
-               --parameters file://certificate-params.json \
-               --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
-           fi
-           
-           # Wait for stack creation/update to complete
-           aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME" || \
-           aws cloudformation wait stack-update-complete --stack-name "$STACK_NAME"
-           
-           # Verify certificate validation status
-           echo "Checking certificate validation status..."
-           CERT_ARN=$(aws cloudformation describe-stacks \
-             --stack-name "$STACK_NAME" \
-             --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayCertificateArn'].OutputValue" \
-             --output text)
-             
-           if [ -n "$CERT_ARN" ]; then
-             VALIDATION_STATUS=$(aws acm describe-certificate \
-               --certificate-arn "$CERT_ARN" \
-               --query "Certificate.Status" \
-               --output text)
-               
-             echo "Certificate validation status: $VALIDATION_STATUS"
-             
-             if [ "$VALIDATION_STATUS" != "ISSUED" ]; then
-               echo "Certificate is not yet validated. You may need to add DNS validation records."
-               aws acm describe-certificate \
-                 --certificate-arn "$CERT_ARN" \
-                 --query "Certificate.DomainValidationOptions[].ResourceRecord" \
-                 --output json
-             fi
-           fi         
 
    # Deploy database stack after networking
    deploy-database:
@@ -559,7 +448,7 @@ jobs:
            
            # Add ApiGatewayCertificateARN from the API certificate stack in us-east-1
            API_CERT_ARN=$(aws cloudformation describe-stacks \
-             --stack-name "findmylunch-${ENV}-api-certificate" \
+             --stack-name "findmylunch-${ENV}-networking" \
              --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayCertificateArn'].OutputValue" \
              --output text 2>/dev/null || echo "")
            

@@ -136,7 +136,7 @@ Resources:
             - !Sub "www.${DomainName}"
             - !Ref AWS::NoValue
         Origins:
-          - DomainName: !GetAtt WebsiteBucket.RegionalDomainName
+          - DomainName: !GetAtt WebsiteBucket.DomainName
             Id: S3Origin
             S3OriginConfig:
               OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${CloudFrontOriginAccessIdentity}"
@@ -198,7 +198,7 @@ Resources:
       HostedZoneId: !If
         - IsImportedHostedZone
         - !Ref HostedZoneId
-        - Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
+        - Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-MainHostedZoneId"
       Name: !If 
         - IsProduction
         - !Ref DomainName
@@ -217,7 +217,7 @@ Resources:
       HostedZoneId: !If
         - IsImportedHostedZone
         - !Ref HostedZoneId
-        - Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
+        - Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-MainHostedZoneId"
       Name: !Sub "www.${DomainName}"
       Type: A
       AliasTarget:

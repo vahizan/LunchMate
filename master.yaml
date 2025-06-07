@@ -133,7 +133,7 @@ Parameters:
   AWSRegion:
     Description: AWS Region where resources will be deployed
     Type: String
-    Default: eu-west-1
+    Default: us-east-1
     
   CertificateRegion:
     Description: AWS Region where API Gateway certificate will be deployed (must be us-east-1 for API Gateway custom domains)
@@ -405,47 +405,11 @@ Mappings:
       EnhancedMonitoring: true
 
 Resources:
-  # Base Networking Stack (creates the hosted zone first)
-  BaseNetworkingStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/base-networking.yaml"
-      Parameters:
-        ArtifactBucketPrefix: !Ref ArtifactBucketPrefix
-        EnvironmentName: !Ref EnvironmentName
-        DomainName: !Ref DomainName
-      Tags:
-        - Key: Name
-          Value: !Sub "${EnvironmentName}-findmylunch-base-networking-stack"
-        - Key: Environment
-          Value: !Ref EnvironmentName
-        - Key: Application
-          Value: FindMyLunch
-
-  # API Gateway Certificate Stack (us-east-1)
-  ApiCertificateStack:
-    Type: AWS::CloudFormation::Stack
-    DependsOn: BaseNetworkingStack
-    Properties:
-      TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${CertificateRegion}.s3.amazonaws.com/templates/api-certificate.yaml"
-      Parameters:
-        EnvironmentName: !Ref EnvironmentName
-        DomainName: !Ref DomainName
-        SubDomainPrefix: !Ref SubDomainPrefix
-      Tags:
-        - Key: Name
-          Value: !Sub "${EnvironmentName}-findmylunch-api-certificate-stack"
-        - Key: Environment
-          Value: !Ref EnvironmentName
-        - Key: Application
-          Value: FindMyLunch
-
-  # Networking Stack (depends on ApiCertificateStack for the certificate ARN)
+  # Networking Stack (consolidated from base-networking and api-certificate)
   NetworkingStack:
     Type: AWS::CloudFormation::Stack
-    DependsOn: ApiCertificateStack
     Properties:
-      TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/networking.yaml"
+      TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${CertificateRegion}.s3.amazonaws.com/templates/networking.yaml"
       Parameters:
         ArtifactBucketPrefix: !Ref ArtifactBucketPrefix
         EnvironmentName: !Ref EnvironmentName
@@ -486,7 +450,6 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn:
       - NetworkingStack
-      - ApiCertificateStack
     Properties:
       TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/database.yaml"
       Parameters:
@@ -516,7 +479,6 @@ Resources:
     DependsOn:
       - NetworkingStack
       - DatabaseStack
-      - ApiCertificateStack
     Properties:
       TemplateURL: !Sub "https://${ArtifactBucketPrefix}-${EnvironmentName}-${AWSRegion}.s3.amazonaws.com/templates/backend.yaml"
       Parameters:
@@ -535,9 +497,9 @@ Resources:
         SecretsManagerARN: !Ref SecretsManagerSecret
         SSLCertificateARN: !Ref SSLCertificateARN
         ApiGatewayCertificateARN:
-          Fn::GetAtt: [ApiCertificateStack, Outputs.ApiGatewayCertificateArn]
+          Fn::GetAtt: [NetworkingStack, Outputs.ApiGatewayCertificateArn]
         HostedZoneId:
-          Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
+          Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-ApiHostedZoneId"
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-findmylunch-backend-stack"
@@ -558,7 +520,7 @@ Resources:
         SubDomainPrefix: !Ref SubDomainPrefix
         CreateRoute53Records: !Ref CreateRoute53Records
         HostedZoneId:
-          Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-HostedZoneId"
+          Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-MainHostedZoneId"
         CertificateArn:
           Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-CertificateArn"
       Tags:
