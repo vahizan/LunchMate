@@ -3,6 +3,7 @@ node_modules
 .env
 networking-params.json
 frontend-params.json
+backend-params.json
 .vscode/
 coverage/
 dist/

@@ -40,10 +40,13 @@ Parameters:
     Default: ''
 
 Conditions:
-  IsProduction: !Equals [!Ref EnvironmentName, 'prod']
-  CreateDNSRecords: !Equals [!Ref CreateRoute53Records, 'true']
-  IsImportedCertificate: !Not [!Equals [!Ref CertificateArn, '']]
-  IsImportedHostedZone: !Not [!Equals [!Ref HostedZoneId, '']]
+  IsProduction: !Equals [!Ref EnvironmentName, "prod"]
+  CreateDNSRecords: !Equals [!Ref CreateRoute53Records, "true"]
+  IsImportedCertificate: !Not [!Equals [!Ref CertificateArn, ""]]
+  IsImportedHostedZone: !Not [!Equals [!Ref HostedZoneId, ""]]
+  CreateDNSRecordsAndIsProduction: !And
+    - !Condition CreateDNSRecords
+    - !Condition IsProduction
 
 Resources:
   # S3 Bucket for Website Hosting
@@ -127,11 +130,11 @@ Resources:
     Properties:
       DistributionConfig:
         Aliases:
-          - !If 
+          - !If
             - IsProduction
             - !Ref DomainName
             - !Sub "${SubDomainPrefix}.${DomainName}"
-          - !If 
+          - !If
             - IsProduction
             - !Sub "www.${DomainName}"
             - !Ref AWS::NoValue
@@ -179,16 +182,16 @@ Resources:
             ResponseCode: 200
             ResponsePagePath: /index.html
             ErrorCachingMinTTL: 3600  # Cache error responses for 1 hour
-        Tags:
-          - Key: Name
-            Value: !If 
-              - IsProduction
-              - !Sub "${DomainName}-distribution"
-              - !Sub "${SubDomainPrefix}.${DomainName}-distribution"
-          - Key: Environment
-            Value: !Ref EnvironmentName
-          - Key: Application
-            Value: FindMyLunch
+      Tags:
+        - Key: Name
+          Value: !If
+            - IsProduction
+            - !Sub "${DomainName}-distribution"
+            - !Sub "${SubDomainPrefix}.${DomainName}-distribution"
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: FindMyLunch
 
   # Route53 DNS Records
   WebsiteDNSRecord:
@@ -212,7 +215,7 @@ Resources:
   # WWW DNS Record (only for production)
   WWWDNSRecord:
     Type: AWS::Route53::RecordSet
-    Condition: !And [CreateDNSRecords, IsProduction]
+    Condition: CreateDNSRecordsAndIsProduction
     Properties:
       HostedZoneId: !If
         - IsImportedHostedZone

@@ -148,6 +148,10 @@
     "ParameterValue": "BUILD_GENERAL1_MEDIUM"
   },
   {
+    "ParameterKey": "SecretsManagerARN",
+    "ParameterValue": "arn:aws:secretsmanager:us-east-1:123456789012:secret:secretsmanager-backend"
+  },
+  {
     "ParameterKey": "ArtifactBucketPrefix",
     "ParameterValue": "findmylunch-artifacts"
   }

@@ -93,16 +93,22 @@ Resources:
     Type: AWS::CertificateManager::Certificate
     Properties:
       DomainName: !Ref DomainName
-      SubjectAlternativeNames: !If
-        - IsProduction
-        - []  # Empty list for production, no additional SANs needed
-        - !Sub "${SubDomainPrefix}.${DomainName}"  # Only add subdomain SAN for non-production
+      SubjectAlternativeNames:
+        !If
+          - IsProduction
+          - [ !Sub "www.${DomainName}" ]  # Include www subdomain for production as a list
+          - [ !Sub "*.${DomainName}" ]  # Wildcard for non-production as a list
       ValidationMethod: DNS
-      DomainValidationOptions:
-        - DomainName: !Ref DomainName
-          HostedZoneId: !Ref MainHostedZone
-        - DomainName: !Sub "${SubDomainPrefix}.${DomainName}"
-          HostedZoneId: !Ref MainHostedZone
+      DomainValidationOptions: !If
+        - IsProduction
+        - - DomainName: !Ref DomainName
+            HostedZoneId: !Ref MainHostedZone
+          - DomainName: !Sub "www.${DomainName}"
+            HostedZoneId: !Ref MainHostedZone
+        - - DomainName: !Ref DomainName
+            HostedZoneId: !Ref MainHostedZone
+          - DomainName: !Sub "*.${DomainName}"
+            HostedZoneId: !Ref MainHostedZone
       Tags:
         - Key: Name
           Value: !Sub "${DomainName}-certificate"

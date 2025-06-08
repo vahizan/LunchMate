@@ -287,10 +287,11 @@ jobs:
              # Update existing stack
              aws cloudformation deploy \
                --stack-name "$STACK_NAME" \
-               --template-url "https://${US_EAST_BUCKET_NAME}.s3.amazonaws.com/templates/networking.yaml" \
-               --parameters file://networking-params.json \
+               --template-file "networking.yaml" \
+               --parameter-overrides file://networking-params.json \
                --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
                --no-fail-on-empty-changeset
+
            else
              # Create new stack
              aws cloudformation create-stack \
@@ -402,7 +403,7 @@ jobs:
            PARAMS_FILE="${ENV}-parameters.json"
            
            # Extract backend parameters from the main parameters file
-           jq '[.[] | select(.ParameterKey | test("^(EnvironmentName|ArtifactBucketPrefix|ApplicationName|EnvironmentNamePrefix|DomainName|SubDomainPrefix|NodeJSVersion|InstanceType|MinInstances|MaxInstances|ScaleUpThreshold|ScaleDownThreshold|SSLCertificateARN|HostedZoneId)$"))]' $PARAMS_FILE > backend-params.json
+           jq '[.[] | select(.ParameterKey | test("^(EnvironmentName|ApplicationName|EnvironmentNamePrefix|DomainName|SubDomainPrefix|NodeJSVersion|InstanceType|MinInstances|MaxInstances|ScaleUpThreshold|ScaleDownThreshold|SSLCertificateARN|HostedZoneId)$"))]' $PARAMS_FILE > backend-params.json
            
            # Create SecretsManagerARN parameter
            SECRETS_MANAGER_ARN=$(aws cloudformation describe-stacks \

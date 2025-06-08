@@ -179,13 +179,13 @@ Resources:
     Properties:
       ApplicationName: !Sub ${EnvironmentNamePrefix}-${EnvironmentName}
       Description: !Sub "FindMyLunch ${EnvironmentName} Backend Application"
-      Tags:
-        - Key: Name
-          Value: !Sub ${EnvironmentName}-findmylunch-application
-        - Key: Environment
-          Value: !Ref EnvironmentName
-        - Key: Application
-          Value: FindMyLunch
+      # Tags:
+      #   - Key: Name
+      #     Value: !Sub ${EnvironmentName}-findmylunch-application
+      #   - Key: Environment
+      #     Value: !Ref EnvironmentName
+      #   - Key: Application
+      #     Value: FindMyLunch
 
   # Elastic Beanstalk Environment
   ElasticBeanstalkEnvironment:
@@ -235,24 +235,24 @@ Resources:
         - Namespace: aws:elbv2:listener:default
           OptionName: Protocol
           Value: HTTP
-        - Namespace: aws:elbv2:listener:443
-          OptionName: Protocol
-          Value: HTTPS
-          Fn::If:
-            - HasSSLCertificate
-            - !Ref AWS::NoValue
-        - Namespace: aws:elbv2:listener:443
-          OptionName: SSLCertificateArns
-          Value: !Ref SSLCertificateARN
-          Fn::If:
-            - HasSSLCertificate
-            - !Ref AWS::NoValue
-        - Namespace: aws:elbv2:listener:443
-          OptionName: DefaultProcess
-          Value: default
-          Fn::If:
-            - HasSSLCertificate
-            - !Ref AWS::NoValue
+        - !If
+          - HasSSLCertificate
+          - Namespace: aws:elbv2:listener:443
+            OptionName: Protocol
+            Value: HTTPS
+          - !Ref AWS::NoValue
+        - !If
+          - HasSSLCertificate
+          - Namespace: aws:elbv2:listener:443
+            OptionName: SSLCertificateArns
+            Value: !Ref SSLCertificateARN
+          - !Ref AWS::NoValue
+        - !If
+          - HasSSLCertificate
+          - Namespace: aws:elbv2:listener:443
+            OptionName: DefaultProcess
+            Value: default
+          - !Ref AWS::NoValue
 
         # Instance Configuration
         - Namespace: aws:autoscaling:launchconfiguration
@@ -360,7 +360,7 @@ Resources:
           Value: nginx
 
       Tags:
-        - Key: Name
+        - Key: FullName
           Value: !Sub ${EnvironmentName}-findmylunch-environment
         - Key: Environment
           Value: !Ref EnvironmentName
