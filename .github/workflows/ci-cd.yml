@@ -56,6 +56,15 @@ on:
           - all
           - frontend
           - backend
+      deploy_version:
+        description: 'Version label for deployment (optional)'
+        required: false
+        type: string
+
+env:
+  # Common environment variables
+  NODE_VERSION: '22'
+  DEFAULT_REGION: 'us-east-1'
 
 jobs:
    test-frontend:
@@ -158,8 +167,36 @@ jobs:
           # Create Elastic Beanstalk bundle
           mkdir -p eb-bundle
           cp -r dist/* eb-bundle/
+          
+          # Copy package files but install only production dependencies
           cp package.json package-lock.json eb-bundle/
           cd eb-bundle
+          npm ci --only=production
+          rm package-lock.json
+          
+          # Create necessary Elastic Beanstalk configuration files
+          mkdir -p .ebextensions
+          cat > .ebextensions/nodecommand.config << 'EOL'
+          option_settings:
+            aws:elasticbeanstalk:container:nodejs:
+              NodeCommand: "node server.js"
+              NodeVersion: 22
+          EOL
+          
+          # Create Procfile
+          echo "web: node server.js" > Procfile
+          
+          # Create healthcheck endpoint file if it doesn't exist
+          if [ ! -f "healthcheck.js" ]; then
+            cat > healthcheck.js << 'EOL'
+          // Simple health check endpoint
+          app.get('/health', (req, res) => {
+            res.status(200).json({ status: 'healthy', environment: process.env.NODE_ENV });
+          });
+          EOL
+          fi
+          
+          # Create zip bundle
           zip -r ../eb-bundle.zip .
         env:
           NODE_ENV: prod
@@ -284,21 +321,19 @@ jobs:
            
            # Check if stack exists
            if aws cloudformation describe-stacks --stack-name "$STACK_NAME" 2>/dev/null; then
-             # Update existing stack
-             aws cloudformation deploy \
-               --stack-name "$STACK_NAME" \
-               --template-file "networking.yaml" \
-               --parameter-overrides file://networking-params.json \
-               --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
-               --no-fail-on-empty-changeset
-
+             echo "Networking stack already exists. Skipping deployment."
            else
              # Create new stack
+             echo "Creating new networking stack..."
              aws cloudformation create-stack \
                --stack-name "$STACK_NAME" \
                --template-url "https://${US_EAST_BUCKET_NAME}.s3.amazonaws.com/templates/networking.yaml" \
                --parameters file://networking-params.json \
                --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
+               
+             # Wait for stack creation to complete
+             echo "Waiting for networking stack creation to complete..."
+             aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
            fi
            
            # Wait for stack creation/update to complete
@@ -335,6 +370,7 @@ jobs:
      name: Deploy Database Stack
      needs: [setup-cloudformation, deploy-networking]
      runs-on: ubuntu-latest
+     if: false #skip db step for now
      environment: ${{ github.event.inputs.environment || 'qa' }}
      steps:
        - name: Checkout code
@@ -359,31 +395,31 @@ jobs:
            
            # Check if stack exists
            if aws cloudformation describe-stacks --stack-name "$STACK_NAME" 2>/dev/null; then
-             # Update existing stack
-             aws cloudformation update-stack \
-               --stack-name "$STACK_NAME" \
-               --template-url "https://${BUCKET_NAME}.s3.amazonaws.com/templates/database.yaml" \
-               --parameters file://database-params.json \
-               --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
+             echo "Database stack already exists. Skipping deployment."
            else
              # Create new stack
+             echo "Creating new database stack..."
              aws cloudformation create-stack \
                --stack-name "$STACK_NAME" \
                --template-url "https://${BUCKET_NAME}.s3.amazonaws.com/templates/database.yaml" \
                --parameters file://database-params.json \
                --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
+             
+             # Wait for stack creation to complete
+             echo "Waiting for database stack creation to complete..."
+             aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
            fi
-           
-           # Wait for stack creation/update to complete
-           aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME" || \
-           aws cloudformation wait stack-update-complete --stack-name "$STACK_NAME"
 
    # Deploy backend stack after database
    deploy-backend:
      name: Deploy Backend Stack
-     needs: [setup-cloudformation, deploy-networking, deploy-database]
+     needs: [setup-cloudformation, deploy-networking]
      runs-on: ubuntu-latest
      environment: ${{ github.event.inputs.environment || 'qa' }}
+     outputs:
+       stack_status: ${{ steps.deploy_stack.outputs.stack_status }}
+       eb_environment_name: ${{ steps.deploy_stack.outputs.eb_environment_name }}
+       eb_environment_url: ${{ steps.deploy_stack.outputs.eb_environment_url }}
      steps:
        - name: Checkout code
          uses: actions/checkout@v4
@@ -396,6 +432,7 @@ jobs:
            aws-region: ${{ vars.AWS_REGION }}
 
        - name: Deploy Backend Stack
+         id: deploy_stack
          run: |
            ENV="${{ needs.setup-cloudformation.outputs.env }}"
            BUCKET_NAME="${{ needs.setup-cloudformation.outputs.bucket_name }}"
@@ -418,6 +455,53 @@ jobs:
                --description "Environment variables for ${ENV} FindMyLunch application" \
                --secret-string '{}' \
                --query ARN --output text)
+               
+             # Store initial environment variables
+             aws secretsmanager update-secret \
+               --secret-id "$SECRETS_MANAGER_ARN" \
+               --secret-string '{
+                 "NODE_ENV": "'"${ENV}"'",
+                 "AWS_REGION": "'"${{ vars.AWS_REGION }}"'",
+                 "DB_HOST": "'"\${DB_HOST}"'",
+                 "DB_PORT": "5432",
+                 "DB_NAME": "findmylunch_'"${ENV}"'",
+                 "DB_USER": "'"\${DB_USER}"'",
+                 "DB_PASSWORD": "'"\${DB_PASSWORD}"'",
+                 "API_URL": "'"\${API_URL}"'"
+               }'
+           fi
+           
+           # Wait for stack creation/update to complete
+           echo "Waiting for backend stack operation to complete..."
+           aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME" || \
+           aws cloudformation wait stack-update-complete --stack-name "$STACK_NAME"
+           
+           # Get stack status
+           STACK_STATUS=$(aws cloudformation describe-stacks \
+             --stack-name "$STACK_NAME" \
+             --query "Stacks[0].StackStatus" \
+             --output text)
+             
+           echo "stack_status=$STACK_STATUS" >> $GITHUB_OUTPUT
+           
+           # Get Elastic Beanstalk environment name and URL
+           EB_ENV_NAME=$(aws cloudformation describe-stacks \
+             --stack-name "$STACK_NAME" \
+             --query "Stacks[0].Outputs[?OutputKey=='ElasticBeanstalkEnvironmentName'].OutputValue" \
+             --output text)
+             
+           EB_ENV_URL=$(aws cloudformation describe-stacks \
+             --stack-name "$STACK_NAME" \
+             --query "Stacks[0].Outputs[?OutputKey=='ElasticBeanstalkEnvironmentURL'].OutputValue" \
+             --output text)
+             
+           echo "eb_environment_name=$EB_ENV_NAME" >> $GITHUB_OUTPUT
+           echo "eb_environment_url=$EB_ENV_URL" >> $GITHUB_OUTPUT
+           
+           # Check if stack creation/update was successful
+           if [[ "$STACK_STATUS" != *"COMPLETE"* ]]; then
+             echo "::error::Backend stack deployment failed with status: $STACK_STATUS"
+             exit 1
            fi
            
            # Add SecretsManagerARN to backend parameters
@@ -446,24 +530,20 @@ jobs:
            
            # Check if stack exists
            if aws cloudformation describe-stacks --stack-name "$STACK_NAME" 2>/dev/null; then
-             # Update existing stack
-             aws cloudformation update-stack \
-               --stack-name "$STACK_NAME" \
-               --template-url "https://${BUCKET_NAME}.s3.amazonaws.com/templates/backend.yaml" \
-               --parameters file://backend-params.json \
-               --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
+             echo "Backend stack already exists. Skipping deployment."
            else
              # Create new stack
+             echo "Creating new backend stack..."
              aws cloudformation create-stack \
                --stack-name "$STACK_NAME" \
                --template-url "https://${BUCKET_NAME}.s3.amazonaws.com/templates/backend.yaml" \
                --parameters file://backend-params.json \
                --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
+             
+             # Wait for stack creation to complete
+             echo "Waiting for backend stack creation to complete..."
+             aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
            fi
-           
-           # Wait for stack creation/update to complete
-           aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME" || \
-           aws cloudformation wait stack-update-complete --stack-name "$STACK_NAME"
 
    # Deploy frontend stack last
    deploy-frontend:
@@ -505,29 +585,29 @@ jobs:
            
            # Check if stack exists
            if aws cloudformation describe-stacks --stack-name "$STACK_NAME" 2>/dev/null; then
-             # Update existing stack
-             aws cloudformation update-stack \
-               --stack-name "$STACK_NAME" \
-               --template-url "https://${BUCKET_NAME}.s3.amazonaws.com/templates/frontend.yaml" \
-               --parameters file://frontend-params.json \
-               --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
+             echo "Frontend stack already exists. Skipping deployment."
            else
              # Create new stack
+             echo "Creating new frontend stack..."
              aws cloudformation create-stack \
                --stack-name "$STACK_NAME" \
                --template-url "https://${BUCKET_NAME}.s3.amazonaws.com/templates/frontend.yaml" \
                --parameters file://frontend-params.json \
                --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
+             
+             # Wait for stack creation to complete
+             echo "Waiting for frontend stack creation to complete..."
+             aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
            fi
-           
-           # Wait for stack creation/update to complete
-           aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME" || \
-           aws cloudformation wait stack-update-complete --stack-name "$STACK_NAME"
 
    deploy-qa:
-    name: Deploy to QA (skipped unless the app grows)
-    needs: build
-    if: false
+    name: Deploy to QA
+    needs: [build, deploy-networking, deploy-backend, deploy-frontend]
+    if: |
+      (github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'qa')) &&
+      (needs.deploy-backend.outputs.stack_status == '' ||
+      contains(needs.deploy-backend.outputs.stack_status, 'COMPLETE'))
     runs-on: ubuntu-latest
     environment: qa
     strategy:
@@ -591,12 +671,61 @@ jobs:
         with:
           aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          application_name: ${{ secrets.EB_APPLICATION_NAME }}
-          environment_name: ${{ secrets.EB_ENVIRONMENT_NAME }}
-          version_label: "findmylunch-backend-${{ github.run_number }}-${{ github.run_attempt }}"
+          application_name: ${{ secrets.EB_APPLICATION_NAME || format('findmylunch-{0}', github.event.inputs.environment || 'qa') }}
+          environment_name: ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME }}
+          version_label: "${{ github.event.inputs.deploy_version || format('findmylunch-backend-{0}-{1}-{2}', github.event.inputs.environment || 'qa', github.run_number, github.run_attempt) }}"
           region: ${{ vars.AWS_REGION }}
           deployment_package: eb-bundle.zip
           wait_for_environment_recovery: 300
+          use_existing_version_if_available: false
+          deployment_description: "QA deployment from GitHub Actions workflow run #${{ github.run_number }}"
+          
+      - name: Verify backend deployment
+        if: matrix.component == 'backend'
+        run: |
+          # Wait for environment to stabilize
+          echo "Waiting for environment to stabilize..."
+          sleep 30
+          
+          # Get the Elastic Beanstalk environment URL
+          EB_ENV_URL=${{ needs.deploy-backend.outputs.eb_environment_url || '' }}
+          
+          if [ -z "$EB_ENV_URL" ]; then
+            EB_ENV_URL=$(aws elasticbeanstalk describe-environments \
+              --environment-names ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME }} \
+              --query "Environments[0].CNAME" \
+              --output text)
+          fi
+            
+          # Check health status
+          HEALTH_STATUS=$(aws elasticbeanstalk describe-environments \
+            --environment-names ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME }} \
+            --query "Environments[0].Health" \
+            --output text)
+            
+          echo "Environment URL: $EB_ENV_URL"
+          echo "Health status: $HEALTH_STATUS"
+          
+          if [ "$HEALTH_STATUS" != "Green" ]; then
+            echo "Environment health is not Green. Checking health events..."
+            aws elasticbeanstalk describe-events \
+              --environment-name ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME }} \
+              --max-items 10
+              
+            # Continue but mark as warning
+            echo "::warning::Environment health is $HEALTH_STATUS, not Green"
+          fi
+          
+          # Test health endpoint
+          echo "Testing health endpoint..."
+          HEALTH_URL="http://$EB_ENV_URL/health"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $HEALTH_URL || echo "failed")
+          
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "Health endpoint check successful"
+          else
+            echo "::warning::Health endpoint check failed with status $HTTP_STATUS"
+          fi
 
    approve-prod-deployment:
     name: Approve Production Deployment
@@ -612,11 +741,17 @@ jobs:
    deploy-prod:
     name: Deploy to Production
     needs:
-      - build 
+      - build
       - approve-prod-deployment
+      - deploy-networking
+      - deploy-backend
+      - deploy-frontend
     runs-on: ubuntu-latest
     environment: prod
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod'
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod') &&
+      (needs.deploy-backend.outputs.stack_status == '' ||
+      contains(needs.deploy-backend.outputs.stack_status, 'COMPLETE'))
     strategy:
       matrix:
         component: [frontend, backend]
@@ -678,9 +813,119 @@ jobs:
         with:
           aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          application_name: ${{ vars.EB_APPLICATION_NAME }}
-          environment_name: ${{ vars.EB_ENVIRONMENT_NAME }}
-          version_label: "findmylunch-backend-${{ github.run_number }}-${{ github.run_attempt }}"
+          application_name: ${{ secrets.EB_APPLICATION_NAME || format('findmylunch-{0}', github.event.inputs.environment) }}
+          environment_name: ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME_PROD }}
+          version_label: "${{ github.event.inputs.deploy_version || format('findmylunch-backend-prod-{0}-{1}', github.run_number, github.run_attempt) }}"
           region: ${{ vars.AWS_REGION }}
           deployment_package: eb-bundle.zip
-          wait_for_environment_recovery: 300
+          wait_for_environment_recovery: 600
+          timeout: 900
+          use_existing_version_if_available: false
+          deployment_description: "Production deployment from GitHub Actions workflow run #${{ github.run_number }}"
+          
+      - name: Verify backend deployment
+        if: matrix.component == 'backend'
+        run: |
+          # Wait for environment to stabilize
+          echo "Waiting for environment to stabilize..."
+          sleep 60
+          
+          # Get the Elastic Beanstalk environment URL
+          EB_ENV_URL=${{ needs.deploy-backend.outputs.eb_environment_url || '' }}
+          
+          if [ -z "$EB_ENV_URL" ]; then
+            EB_ENV_URL=$(aws elasticbeanstalk describe-environments \
+              --environment-names ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME_PROD }} \
+              --query "Environments[0].CNAME" \
+              --output text)
+          fi
+            
+          # Check health status
+          HEALTH_STATUS=$(aws elasticbeanstalk describe-environments \
+            --environment-names ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME_PROD }} \
+            --query "Environments[0].Health" \
+            --output text)
+            
+          echo "Environment URL: $EB_ENV_URL"
+          echo "Health status: $HEALTH_STATUS"
+          
+          if [ "$HEALTH_STATUS" != "Green" ]; then
+            echo "Environment health is not Green. Checking health events..."
+            aws elasticbeanstalk describe-events \
+              --environment-name ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME_PROD }} \
+              --max-items 10
+              
+            # Fail the workflow if production deployment is not healthy
+            echo "::error::Production environment health is $HEALTH_STATUS, not Green"
+            exit 1
+          fi
+          
+          # Test health endpoint
+          echo "Testing health endpoint..."
+          HEALTH_URL="http://$EB_ENV_URL/health"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $HEALTH_URL || echo "failed")
+          
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "Health endpoint check successful"
+          else
+            echo "::error::Health endpoint check failed with status $HTTP_STATUS"
+            exit 1
+          fi
+          
+      - name: Update API Gateway integration
+        if: matrix.component == 'backend'
+        run: |
+          # Get the Elastic Beanstalk environment URL
+          EB_ENV_URL=${{ needs.deploy-backend.outputs.eb_environment_url || '' }}
+          
+          if [ -z "$EB_ENV_URL" ]; then
+            EB_ENV_URL=$(aws elasticbeanstalk describe-environments \
+              --environment-names ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME_PROD }} \
+              --query "Environments[0].CNAME" \
+              --output text)
+          fi
+            
+          # Get the API Gateway REST API ID
+          API_ID=$(aws cloudformation describe-stacks \
+            --stack-name "findmylunch-prod-backend" \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayRestApiId'].OutputValue" \
+            --output text)
+            
+          if [ -n "$API_ID" ] && [ -n "$EB_ENV_URL" ]; then
+            echo "Updating API Gateway integration with Elastic Beanstalk URL: $EB_ENV_URL"
+            
+            # Get all resources in the API
+            RESOURCES=$(aws apigateway get-resources --rest-api-id $API_ID)
+            
+            # Update the integration for each resource with ANY method
+            echo "$RESOURCES" | jq -r '.items[] | select(.resourceMethods != null and .resourceMethods.ANY != null) | .id' | while read -r RESOURCE_ID; do
+              echo "Updating integration for resource $RESOURCE_ID"
+              
+              # Check if this is the root resource or a proxy resource
+              RESOURCE_PATH=$(echo "$RESOURCES" | jq -r --arg id "$RESOURCE_ID" '.items[] | select(.id == $id) | .path')
+              
+              if [ "$RESOURCE_PATH" = "/" ]; then
+                # Root resource
+                INTEGRATION_URI="http://$EB_ENV_URL"
+              else
+                # Proxy resource
+                INTEGRATION_URI="http://$EB_ENV_URL/{proxy}"
+              fi
+              
+              aws apigateway update-integration \
+                --rest-api-id $API_ID \
+                --resource-id $RESOURCE_ID \
+                --http-method ANY \
+                --patch-operations op=replace,path=/uri,value="$INTEGRATION_URI"
+            done
+            
+            # Create a deployment to apply the changes
+            aws apigateway create-deployment \
+              --rest-api-id $API_ID \
+              --stage-name prod \
+              --description "Update backend integration URL"
+              
+            echo "API Gateway integration updated successfully"
+          else
+            echo "::warning::Could not update API Gateway integration. Missing API ID or EB URL."
+          fi

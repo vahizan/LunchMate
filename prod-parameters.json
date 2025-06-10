@@ -77,7 +77,7 @@
   },
   {
     "ParameterKey": "SSLCertificateARN",
-    "ParameterValue": "arn:aws:acm:us-east-1:123456789012:certificate/findmylunch-prod"
+    "ParameterValue": ""
   },
   {
     "ParameterKey": "DBInstanceClass",

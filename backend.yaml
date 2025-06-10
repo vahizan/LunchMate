@@ -353,9 +353,6 @@ Resources:
 
         # Node.js Platform Options
         - Namespace: aws:elasticbeanstalk:container:nodejs
-          OptionName: NodeVersion
-          Value: !Ref NodeJSVersion
-        - Namespace: aws:elasticbeanstalk:container:nodejs
           OptionName: ProxyServer
           Value: nginx
 
@@ -494,14 +491,106 @@ Resources:
         - Key: Application
           Value: FindMyLunch
           
+  # API Gateway REST API
+  ApiGatewayRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "${EnvironmentNamePrefix}-${EnvironmentName}-api"
+      Description: !Sub "FindMyLunch ${EnvironmentName} API"
+      EndpointConfiguration:
+        Types:
+          - EDGE
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-findmylunch-api
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Application
+          Value: FindMyLunch
+
+  # API Gateway Root Resource Proxy Method
+  ApiGatewayRootMethod:
+    Type: AWS::ApiGateway::Method
+    DependsOn: ElasticBeanstalkEnvironment
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      ResourceId: !GetAtt ApiGatewayRestApi.RootResourceId
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      Integration:
+        Type: HTTP_PROXY
+        IntegrationHttpMethod: ANY
+        Uri: !If [HasSSLCertificate, !Sub "https://${ElasticBeanstalkEnvironment.EndpointURL}", !Sub "http://${ElasticBeanstalkEnvironment.EndpointURL}"]
+        ConnectionType: INTERNET
+        IntegrationResponses:
+          - StatusCode: 200
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: 'Empty'
+
+  # API Gateway Proxy Resource
+  ApiGatewayProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: "{proxy+}"
+
+  # API Gateway Proxy Resource Method
+  ApiGatewayProxyMethod:
+    Type: AWS::ApiGateway::Method
+    DependsOn: ElasticBeanstalkEnvironment
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      ResourceId: !Ref ApiGatewayProxyResource
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.proxy: true
+      Integration:
+        Type: HTTP_PROXY
+        IntegrationHttpMethod: ANY
+        Uri: !If [HasSSLCertificate, !Sub "https://${ElasticBeanstalkEnvironment.EndpointURL}/{proxy}", !Sub "http://${ElasticBeanstalkEnvironment.EndpointURL}/{proxy}"]
+        RequestParameters:
+          integration.request.path.proxy: method.request.path.proxy
+        ConnectionType: INTERNET
+        IntegrationResponses:
+          - StatusCode: 200
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: 'Empty'
+
+  # API Gateway Deployment
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ApiGatewayRootMethod
+      - ApiGatewayProxyMethod
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      Description: !Sub "FindMyLunch ${EnvironmentName} API Deployment"
+
+  # API Gateway Stage
+  ApiGatewayStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      DeploymentId: !Ref ApiGatewayDeployment
+      StageName: !If [IsProduction, 'prod', 'qa']
+      Description: !Sub "FindMyLunch ${EnvironmentName} API Stage"
+
   # API Gateway Base Path Mapping
   ApiGatewayBasePathMapping:
     Type: AWS::ApiGateway::BasePathMapping
-    DependsOn: ElasticBeanstalkEnvironment
+    DependsOn:
+      - ElasticBeanstalkEnvironment
+      - ApiGatewayStage
     Properties:
       DomainName:
         Fn::ImportValue: !Sub "${EnvironmentName}-FindMyLunch-ApiGatewayDomainName"
-      RestApiId: !GetAtt ElasticBeanstalkEnvironment.APIGatewayId
+      RestApiId: !Ref ApiGatewayRestApi
       Stage: !If [IsProduction, 'prod', 'qa']
 
 Outputs:
@@ -564,6 +653,12 @@ Outputs:
     Value: !Ref HealthTopic
     Export:
       Name: !Sub "${EnvironmentName}-FindMyLunch-HealthTopicARN"
+      
+  ApiGatewayRestApiId:
+    Description: ID of the API Gateway REST API
+    Value: !Ref ApiGatewayRestApi
+    Export:
+      Name: !Sub "${EnvironmentName}-FindMyLunch-ApiGatewayRestApiId"
       
   ApiEndpoint:
     Description: API endpoint URL with custom domain
