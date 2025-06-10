@@ -114,7 +114,7 @@ export function LocationInputField({ onLocationSelected }: LocationInputFieldPro
       console.warn('LocationInputField: Input ref is not available');
       setAutocompleteError('Input field not available. Please try again later.');
     }
-  }, [initAutocomplete, setLocation, isLoaded, error, onLocationSelected, providerType]);
+  }, [initAutocomplete, setLocation, isLoaded, error, providerType]);
 
   return (
     <>

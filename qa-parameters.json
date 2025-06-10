@@ -53,7 +53,7 @@
   },
   {
     "ParameterKey": "NodeJSVersion",
-    "ParameterValue": "18.17.0"
+    "ParameterValue": "22"
   },
   {
     "ParameterKey": "InstanceType",

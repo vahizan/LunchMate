@@ -24,11 +24,11 @@ Parameters:
   NodeJSVersion:
     Description: Node.js version for the Elastic Beanstalk platform
     Type: String
-    Default: '18.17.0'
+    Default: '22'
     AllowedValues:
-      - '16.20.0'
-      - '18.17.0'
-      - '20.10.0'
+      - '18s'
+      - '20'
+      - '22'
 
   InstanceType:
     Description: EC2 instance type for the Elastic Beanstalk environment
@@ -194,7 +194,7 @@ Resources:
       ApplicationName: !Ref ElasticBeanstalkApplication
       EnvironmentName: !Sub ${EnvironmentNamePrefix}-${EnvironmentName}
       Description: !Sub "FindMyLunch ${EnvironmentName} Backend Environment"
-      SolutionStackName: !Sub "64bit Amazon Linux 2023 v6.0.2 running Node.js ${NodeJSVersion}"
+      SolutionStackName: !Sub "64bit Amazon Linux 2023 v6.5.2 running Node.js ${NodeJSVersion}"
       Tier:
         Name: WebServer
         Type: Standard
