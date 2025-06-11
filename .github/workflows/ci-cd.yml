@@ -65,9 +65,6 @@ env:
   # Common environment variables
   NODE_VERSION: '22'
   DEFAULT_REGION: 'us-east-1'
-  # Secret paths in AWS Secrets Manager
-  DEV_SECRETS_PATH: 'development-findmylunch-secrets'
-  PROD_SECRETS_PATH: 'production-findmylunch-secrets'
 
 jobs:
    test-frontend:
@@ -159,47 +156,14 @@ jobs:
 
       - name: Build frontend
         if: matrix.component == 'frontend'
-        run: |
-          # Determine the secrets path based on environment
-          SECRETS_PATH="${{ env.DEV_SECRETS_PATH }}"
-          if [ "${{ github.event.inputs.environment || 'qa' }}" = "prod" ]; then
-            SECRETS_PATH="${{ env.PROD_SECRETS_PATH }}"
-          fi
-          
-          # Get secrets from AWS Secrets Manager
-          SECRETS=$(aws secretsmanager get-secret-value \
-            --secret-id "${SECRETS_PATH}" \
-            --query SecretString \
-            --output text)
-          
-          # Extract required environment variables for frontend build
-          export NODE_ENV=prod
-          export VITE_PLACES_PROVIDER=$(echo $SECRETS | jq -r '.PLACES_PROVIDER // "hybrid"')
-          
-          # Run the build
-          npm run build:frontend
+        run: npm run build:frontend
+        env:
+          NODE_ENV: prod
 
       - name: Build backend
         if: matrix.component == 'backend'
         run: |
-          # Determine the secrets path based on environment
-          SECRETS_PATH="${{ env.DEV_SECRETS_PATH }}"
-          if [ "${{ github.event.inputs.environment || 'qa' }}" = "prod" ]; then
-            SECRETS_PATH="${{ env.PROD_SECRETS_PATH }}"
-          fi
-          
-          # Get secrets from AWS Secrets Manager
-          SECRETS=$(aws secretsmanager get-secret-value \
-            --secret-id "${SECRETS_PATH}" \
-            --query SecretString \
-            --output text)
-          
-          # Extract required environment variables for backend build
-          export NODE_ENV=prod
-          
-          # Run the build
           npm run build:backend
-          
           # Create Elastic Beanstalk bundle
           mkdir -p eb-bundle
           cp -r dist/* eb-bundle/
@@ -482,55 +446,46 @@ jobs:
            if aws cloudformation describe-stacks --stack-name "$STACK_NAME" 2>/dev/null; then
              echo "Backend stack already exists. Skipping deployment."
            else
-              # Create SecretsManagerARN parameter
-              # Determine the secrets path based on environment
-              SECRETS_PATH="${{ env.DEV_SECRETS_PATH }}"
-           
-              if [ "${ENV}" = "prod" ]; then
-                SECRETS_PATH="${{ env.PROD_SECRETS_PATH }}"
-              fi
-           
-              # Check if the secret exists
-              SECRET_EXISTS=$(aws secretsmanager describe-secret --secret-id "${SECRETS_PATH}" 2>/dev/null || echo "")
+              # Create new stack
+              echo "Creating new backend stack..."
+              aws cloudformation create-stack \
+                --stack-name "$STACK_NAME" \
+                --template-url "https://${BUCKET_NAME}.s3.amazonaws.com/templates/backend.yaml" \
+                --parameters file://backend-params.json \
+                --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
               
-              if [ -z "$SECRET_EXISTS" ]; then
-                echo "Creating new secrets manager entry for ${ENV} environment"
-                # Create the secret with initial structure
+              # Wait for stack creation to complete
+              echo "Waiting for backend stack creation to complete..."
+              aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
+
+               # Create SecretsManagerARN parameter
+              SECRETS_MANAGER_ARN=$(aws cloudformation describe-stacks \
+                --stack-name "findmylunch-${ENV}" \
+                --query "Stacks[0].Outputs[?OutputKey=='SecretsManagerARN'].OutputValue" \
+                --output text 2>/dev/null || echo "")
+              
+              if [ -z "$SECRETS_MANAGER_ARN" ]; then
+                # If not found, create a new secret
                 SECRETS_MANAGER_ARN=$(aws secretsmanager create-secret \
-                  --name "${SECRETS_PATH}" \
+                  --name "${ENV}-findmylunch-env-vars" \
                   --description "Environment variables for ${ENV} FindMyLunch application" \
+                  --secret-string '{}' \
+                  --query ARN --output text)
+                  
+                # Store initial environment variables
+                aws secretsmanager update-secret \
+                  --secret-id "$SECRETS_MANAGER_ARN" \
                   --secret-string '{
                     "NODE_ENV": "'"${ENV}"'",
                     "AWS_REGION": "'"${{ vars.AWS_REGION }}"'",
-                    "DB_CONFIG": {
-                      "DB_HOST": "",
-                      "DB_PORT": "5432",
-                      "DB_NAME": "findmylunch_'"${ENV}"'",
-                      "DB_USER": "",
-                      "DB_PASSWORD": ""
-                    },
-                    "API_CONFIG": {
-                      "API_URL": "",
-                      "API_VERSION": "v1"
-                    },
-                    "EXTERNAL_APIS": {
-                      "GOOGLE_MAPS_KEY": "",
-                      "FOURSQUARE_API_KEY": ""
-                    },
-                    "SCRAPER_CONFIG": {
-                      "SCRAPE_OXYLABS_USER": "",
-                      "SCRAPE_OXYLABS_PASS": ""
-                    }
-                  }' \
-                  --query ARN --output text)
-              else
-                # Get the ARN of the existing secret
-                SECRETS_MANAGER_ARN=$(aws secretsmanager describe-secret \
-                  --secret-id "${SECRETS_PATH}" \
-                  --query ARN --output text)
-                  
-                echo "Using existing secrets manager entry: ${SECRETS_MANAGER_ARN}"
-              fi  
+                    "DB_HOST": "'"\${DB_HOST}"'",
+                    "DB_PORT": "5432",
+                    "DB_NAME": "findmylunch_'"${ENV}"'",
+                    "DB_USER": "'"\${DB_USER}"'",
+                    "DB_PASSWORD": "'"\${DB_PASSWORD}"'",
+                    "API_URL": "'"\${API_URL}"'"
+                  }'
+              fi
 
               
               # Get Elastic Beanstalk environment name and URL
@@ -566,18 +521,6 @@ jobs:
                 echo "WARNING: API Gateway Certificate ARN not found in us-east-1 region"
                 echo "This may cause deployment failures if the certificate is required"
               fi 
-
-              # Create new stack
-              echo "Creating new backend stack..."
-              aws cloudformation create-stack \
-                --stack-name "$STACK_NAME" \
-                --template-url "https://${BUCKET_NAME}.s3.amazonaws.com/templates/backend.yaml" \
-                --parameters file://backend-params.json \
-                --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
-              
-              # Wait for stack creation to complete
-              echo "Waiting for backend stack creation to complete..."
-              aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
            fi
 
    # Deploy frontend stack last
@@ -701,33 +644,6 @@ jobs:
           aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"
 
       # Backend deployment
-      - name: Prepare environment variables for Elastic Beanstalk
-        if: matrix.component == 'backend'
-        run: |
-          # Determine the secrets path based on environment
-          ENV="${{ github.event.inputs.environment || 'qa' }}"
-          SECRETS_PATH="${{ env.DEV_SECRETS_PATH }}"
-          if [ "${ENV}" = "prod" ]; then
-            SECRETS_PATH="${{ env.PROD_SECRETS_PATH }}"
-          fi
-          
-          # Get secrets from AWS Secrets Manager
-          SECRETS=$(aws secretsmanager get-secret-value \
-            --secret-id "${SECRETS_PATH}" \
-            --query SecretString \
-            --output text)
-          
-          # Create .env file for Elastic Beanstalk
-          cat > eb-bundle/.env << EOL
-          NODE_ENV=${ENV}
-          AWS_REGION=${{ vars.AWS_REGION }}
-          SECRETS_PATH=${SECRETS_PATH}
-          EOL
-          
-          # Update the zip bundle
-          cd eb-bundle
-          zip -u ../eb-bundle.zip .env
-      
       - name: Deploy backend to Elastic Beanstalk
         if: matrix.component == 'backend'
         uses: einaregilsson/beanstalk-deploy@v21
@@ -870,26 +786,6 @@ jobs:
           aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"
 
       # Backend deployment
-      - name: Prepare environment variables for Elastic Beanstalk (Production)
-        if: matrix.component == 'backend'
-        run: |
-          # Get secrets from AWS Secrets Manager
-          SECRETS=$(aws secretsmanager get-secret-value \
-            --secret-id "${{ env.PROD_SECRETS_PATH }}" \
-            --query SecretString \
-            --output text)
-          
-          # Create .env file for Elastic Beanstalk
-          cat > eb-bundle/.env << EOL
-          NODE_ENV=prod
-          AWS_REGION=${{ vars.AWS_REGION }}
-          SECRETS_PATH=${{ env.PROD_SECRETS_PATH }}
-          EOL
-          
-          # Update the zip bundle
-          cd eb-bundle
-          zip -u ../eb-bundle.zip .env
-      
       - name: Deploy backend to Elastic Beanstalk
         if: matrix.component == 'backend'
         uses: einaregilsson/beanstalk-deploy@v21
