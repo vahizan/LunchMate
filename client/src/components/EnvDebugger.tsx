@@ -27,11 +27,17 @@ export default function EnvDebugger() {
   return (
     <div className="p-4 bg-gray-100 rounded-lg">
       <h2 className="text-lg font-bold mb-2">Environment Variables Debug</h2>
-      <p className="mb-4">VITE_GOOGLE_MAPS_API_KEY: {import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'undefined'}</p>
+      <p className="mb-4">Using backend proxy for API access</p>
       
-      <h3 className="font-semibold mb-2">All Environment Variables:</h3>
+      <h3 className="font-semibold mb-2">Available Environment Variables:</h3>
       <pre className="bg-gray-200 p-2 rounded text-sm">
-        {JSON.stringify(envVars, null, 2)}
+        {JSON.stringify(
+          Object.fromEntries(
+            Object.entries(envVars).filter(([key]) => !key.includes('API_KEY'))
+          ),
+          null,
+          2
+        )}
       </pre>
     </div>
   );

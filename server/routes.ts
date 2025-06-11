@@ -10,6 +10,7 @@ import { registerTeamRoutes } from "./controllers/teamsController";
 import { registerTeamSuggestionsRoutes } from "./controllers/teamSuggestionsController";
 import { registerTeamVotesRoutes } from "./controllers/teamVotesController";
 import { registerCrowdDataRoutes } from "./controllers/crowdDataController";
+import { registerProxyRoutes } from "./controllers/proxy";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   console.log("Registering all API routes...");
@@ -23,6 +24,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerTeamSuggestionsRoutes(app);
   registerTeamVotesRoutes(app);
   registerCrowdDataRoutes(app);
+  
+  // Register proxy routes for third-party APIs
+  await registerProxyRoutes(app);
   
   console.log("All API routes registered successfully");
 
