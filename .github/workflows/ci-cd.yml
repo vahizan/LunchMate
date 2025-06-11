@@ -412,124 +412,116 @@ jobs:
 
    # Deploy backend stack after database
    deploy-backend:
-      name: Deploy Backend Stack
-      id: deploy_stack
-      run: |
-        ENV="${{ needs.setup-cloudformation.outputs.env }}"
-        BUCKET_NAME="${{ needs.setup-cloudformation.outputs.bucket_name }}"
-        STACK_NAME="findmylunch-${ENV}-backend"
-        PARAMS_FILE="${ENV}-parameters.json"
-        
-        # Extract backend parameters from the main parameters file
-        jq '[.[] | select(.ParameterKey | test("^(EnvironmentName|ApplicationName|EnvironmentNamePrefix|DomainName|SubDomainPrefix|NodeJSVersion|InstanceType|MinInstances|MaxInstances|ScaleUpThreshold|ScaleDownThreshold|SSLCertificateARN|HostedZoneId)$"))]' $PARAMS_FILE > backend-params.json
-        
-        # Create SecretsManagerARN parameter
-        SECRETS_MANAGER_ARN=$(aws cloudformation describe-stacks \
-          --stack-name "findmylunch-${ENV}" \
-          --query "Stacks[0].Outputs[?OutputKey=='SecretsManagerARN'].OutputValue" \
-          --output text 2>/dev/null || echo "")
-        
-        if [ -z "$SECRETS_MANAGER_ARN" ]; then
-          # If not found, create a new secret
-          SECRETS_MANAGER_ARN=$(aws secretsmanager create-secret \
-            --name "${ENV}-findmylunch-env-vars" \
-            --description "Environment variables for ${ENV} FindMyLunch application" \
-            --secret-string '{}' \
-            --query ARN --output text)
+     name: Deploy Backend Stack
+     needs: [setup-cloudformation, deploy-networking]
+     runs-on: ubuntu-latest
+     environment: ${{ github.event.inputs.environment || 'qa' }}
+     outputs:
+       stack_status: ${{ steps.deploy_stack.outputs.stack_status }}
+       eb_environment_name: ${{ steps.deploy_stack.outputs.eb_environment_name }}
+       eb_environment_url: ${{ steps.deploy_stack.outputs.eb_environment_url }}
+     steps:
+       - name: Checkout code
+         uses: actions/checkout@v4
+
+       - name: Configure AWS credentials
+         uses: aws-actions/configure-aws-credentials@v4
+         with:
+           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+           aws-region: ${{ vars.AWS_REGION }}
+
+       - name: Deploy Backend Stack
+         id: deploy_stack
+         run: |
+           ENV="${{ needs.setup-cloudformation.outputs.env }}"
+           BUCKET_NAME="${{ needs.setup-cloudformation.outputs.bucket_name }}"
+           STACK_NAME="findmylunch-${ENV}-backend"
+           PARAMS_FILE="${ENV}-parameters.json"
+           
+           # Extract backend parameters from the main parameters file
+           jq '[.[] | select(.ParameterKey | test("^(EnvironmentName|ApplicationName|EnvironmentNamePrefix|DomainName|SubDomainPrefix|NodeJSVersion|InstanceType|MinInstances|MaxInstances|ScaleUpThreshold|ScaleDownThreshold|SSLCertificateARN|HostedZoneId)$"))]' $PARAMS_FILE > backend-params.json
+           
+           # Check if stack exists
+           if aws cloudformation describe-stacks --stack-name "$STACK_NAME" 2>/dev/null; then
+             echo "Backend stack already exists. Skipping deployment."
+           else
+              # Create SecretsManagerARN parameter
+              SECRETS_MANAGER_ARN=$(aws cloudformation describe-stacks \
+                --stack-name "findmylunch-${ENV}" \
+                --query "Stacks[0].Outputs[?OutputKey=='SecretsManagerARN'].OutputValue" \
+                --output text 2>/dev/null || echo "")
+              
+              if [ -z "$SECRETS_MANAGER_ARN" ]; then
+                # If not found, create a new secret
+                SECRETS_MANAGER_ARN=$(aws secretsmanager create-secret \
+                  --name "${ENV}-findmylunch-env-vars" \
+                  --description "Environment variables for ${ENV} FindMyLunch application" \
+                  --secret-string '{}' \
+                  --query ARN --output text)
+                  
+                # Store initial environment variables
+                aws secretsmanager update-secret \
+                  --secret-id "$SECRETS_MANAGER_ARN" \
+                  --secret-string '{
+                    "NODE_ENV": "'"${ENV}"'",
+                    "AWS_REGION": "'"${{ vars.AWS_REGION }}"'",
+                    "DB_HOST": "'"\${DB_HOST}"'",
+                    "DB_PORT": "5432",
+                    "DB_NAME": "findmylunch_'"${ENV}"'",
+                    "DB_USER": "'"\${DB_USER}"'",
+                    "DB_PASSWORD": "'"\${DB_PASSWORD}"'",
+                    "API_URL": "'"\${API_URL}"'"
+                  }'
+              fi
+
+              
+              # Get Elastic Beanstalk environment name and URL
+              EB_ENV_NAME=$(aws cloudformation describe-stacks \
+                --stack-name "$STACK_NAME" \
+                --query "Stacks[0].Outputs[?OutputKey=='ElasticBeanstalkEnvironmentName'].OutputValue" \
+                --output text)
+                
+              EB_ENV_URL=$(aws cloudformation describe-stacks \
+                --stack-name "$STACK_NAME" \
+                --query "Stacks[0].Outputs[?OutputKey=='ElasticBeanstalkEnvironmentURL'].OutputValue" \
+                --output text)
+                
+              echo "eb_environment_name=$EB_ENV_NAME" >> $GITHUB_OUTPUT
+              echo "eb_environment_url=$EB_ENV_URL" >> $GITHUB_OUTPUT      
+              
+              # Add SecretsManagerARN to backend parameters
+              jq '. += [{"ParameterKey": "SecretsManagerARN", "ParameterValue": "'"$SECRETS_MANAGER_ARN"'"}]' backend-params.json > backend-params-temp.json
+              mv backend-params-temp.json backend-params.json
+              
+              
+              # Add ApiGatewayCertificateARN from the API certificate stack in us-east-1
+              API_CERT_ARN=$(aws cloudformation describe-stacks \
+                --stack-name "findmylunch-${ENV}-networking" \
+                --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayCertificateArn'].OutputValue" \
+                --output text 2>/dev/null || echo "")
             
-          # Store initial environment variables
-          aws secretsmanager update-secret \
-            --secret-id "$SECRETS_MANAGER_ARN" \
-            --secret-string '{
-              "NODE_ENV": "'"${ENV}"'",
-              "AWS_REGION": "'"${{ vars.AWS_REGION }}"'",
-              "DB_HOST": "'"\${DB_HOST}"'",
-              "DB_PORT": "5432",
-              "DB_NAME": "findmylunch_'"${ENV}"'",
-              "DB_USER": "'"\${DB_USER}"'",
-              "DB_PASSWORD": "'"\${DB_PASSWORD}"'",
-              "API_URL": "'"\${API_URL}"'"
-            }'
-        fi
-        
-        # Add SecretsManagerARN to backend parameters
-        jq '. += [{"ParameterKey": "SecretsManagerARN", "ParameterValue": "'"$SECRETS_MANAGER_ARN"'"}]' backend-params.json > backend-params-temp.json
-        mv backend-params-temp.json backend-params.json
-        
-        # Configure AWS credentials for us-east-1 to get the API Gateway certificate ARN
-        aws configure set region us-east-1
-        
-        # Add ApiGatewayCertificateARN from the API certificate stack in us-east-1
-        API_CERT_ARN=$(aws cloudformation describe-stacks \
-          --stack-name "findmylunch-${ENV}-networking" \
-          --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayCertificateArn'].OutputValue" \
-          --output text 2>/dev/null || echo "")
-        
-        # Reset region to original
-        aws configure set region ${{ vars.AWS_REGION }}
-        
-        if [ -n "$API_CERT_ARN" ]; then
-          jq '. += [{"ParameterKey": "ApiGatewayCertificateARN", "ParameterValue": "'"$API_CERT_ARN"'"}]' backend-params.json > backend-params-temp.json
-          mv backend-params-temp.json backend-params.json
-        else
-          echo "WARNING: API Gateway Certificate ARN not found in us-east-1 region"
-          echo "This may cause deployment failures if the certificate is required"
-        fi
-        
-        # NOW check if stack exists and create/update accordingly
-        if aws cloudformation describe-stacks --stack-name "$STACK_NAME" 2>/dev/null; then
-          echo "Backend stack already exists. Updating stack..."
-          # Update existing stack
-          aws cloudformation update-stack \
-            --stack-name "$STACK_NAME" \
-            --template-url "https://${BUCKET_NAME}.s3.amazonaws.com/templates/backend.yaml" \
-            --parameters file://backend-params.json \
-            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM || echo "No updates to perform"
-          
-          # Wait for stack update to complete
-          echo "Waiting for backend stack update to complete..."
-          aws cloudformation wait stack-update-complete --stack-name "$STACK_NAME"
-        else
-          # Create new stack
-          echo "Creating new backend stack..."
-          aws cloudformation create-stack \
-            --stack-name "$STACK_NAME" \
-            --template-url "https://${BUCKET_NAME}.s3.amazonaws.com/templates/backend.yaml" \
-            --parameters file://backend-params.json \
-            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
-          
-          # Wait for stack creation to complete
-          echo "Waiting for backend stack creation to complete..."
-          aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
-        fi
-        
-        # Get stack status
-        STACK_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name "$STACK_NAME" \
-          --query "Stacks[0].StackStatus" \
-          --output text)
-          
-        echo "stack_status=$STACK_STATUS" >> $GITHUB_OUTPUT
-        
-        # Check if stack creation/update was successful
-        if [[ "$STACK_STATUS" != *"COMPLETE"* ]]; then
-          echo "::error::Backend stack deployment failed with status: $STACK_STATUS"
-          exit 1
-        fi
-        
-        # Get Elastic Beanstalk environment name and URL
-        EB_ENV_NAME=$(aws cloudformation describe-stacks \
-          --stack-name "$STACK_NAME" \
-          --query "Stacks[0].Outputs[?OutputKey=='ElasticBeanstalkEnvironmentName'].OutputValue" \
-          --output text)
-          
-        EB_ENV_URL=$(aws cloudformation describe-stacks \
-          --stack-name "$STACK_NAME" \
-          --query "Stacks[0].Outputs[?OutputKey=='ElasticBeanstalkEnvironmentURL'].OutputValue" \
-          --output text)
-          
-        echo "eb_environment_name=$EB_ENV_NAME" >> $GITHUB_OUTPUT
-        echo "eb_environment_url=$EB_ENV_URL" >> $GITHUB_OUTPUT
+              
+              if [ -n "$API_CERT_ARN" ]; then
+                jq '. += [{"ParameterKey": "ApiGatewayCertificateARN", "ParameterValue": "'"$API_CERT_ARN"'"}]' backend-params.json > backend-params-temp.json
+                mv backend-params-temp.json backend-params.json
+              else
+                echo "WARNING: API Gateway Certificate ARN not found in us-east-1 region"
+                echo "This may cause deployment failures if the certificate is required"
+              fi 
+
+              # Create new stack
+              echo "Creating new backend stack..."
+              aws cloudformation create-stack \
+                --stack-name "$STACK_NAME" \
+                --template-url "https://${BUCKET_NAME}.s3.amazonaws.com/templates/backend.yaml" \
+                --parameters file://backend-params.json \
+                --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM
+              
+              # Wait for stack creation to complete
+              echo "Waiting for backend stack creation to complete..."
+              aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME"
+           fi
 
    # Deploy frontend stack last
    deploy-frontend:
