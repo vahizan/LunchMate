@@ -24,9 +24,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerTeamSuggestionsRoutes(app);
   registerTeamVotesRoutes(app);
   registerCrowdDataRoutes(app);
-  
-  // Register proxy routes for third-party APIs
-  await registerProxyRoutes(app);
+  registerProxyRoutes(app);
   
   console.log("All API routes registered successfully");
 

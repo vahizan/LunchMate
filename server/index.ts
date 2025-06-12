@@ -46,20 +46,12 @@ app.use((req, res, next) => {
 
 
 (async () => {
-  // Import config here to avoid circular dependencies
-  const config = (await import('./lib/config')).default;
-  
-  // Initialize the ScraperService singleton with credentials from config service
-  try {
-    const scraperConfig = await config.getScraperConfig();
-    ScraperService.getInstance({
-      oxyLabsUsername: scraperConfig.oxyLabsUsername,
-      oxyLabsPassword: scraperConfig.oxyLabsPassword
-    });
-    console.log('ScraperService initialized successfully');
-  } catch (error) {
-    console.error('Failed to initialize ScraperService:', error);
-  }
+  // Initialize the ScraperService singleton with credentials from .env
+
+  ScraperService.getInstance({
+  oxyLabsUsername: 'lunchmate_BbFPS',
+  oxyLabsPassword: process.env.SCRAPE_OXYLABS_PASS
+});
 
   const server = await registerRoutes(app);
 

@@ -2,30 +2,12 @@ import { PlacesProvider, PlaceResult } from './types';
 import L from 'leaflet';
 
 export class FoursquareProvider implements PlacesProvider {
-  isLoaded: boolean = false;
   error: Error | null = null;
+  private apiKey: string | undefined;
   private map: any = null;
 
-  constructor() {
-    // Load Foursquare API
-    this.loadApi();
-  }
-
-  private loadApi(): void {
-    console.log('Loading Foursquare API...');
-    
-    // Foursquare doesn't require a script to be loaded like Google Maps
-    // Just mark as loaded since we'll use the backend proxy
-    this.isLoaded = true;
-    console.log('Foursquare API ready to use');
-  }
 
   initAutocomplete(inputElement: HTMLInputElement, onPlaceSelected: (place: PlaceResult) => void): any {
-    if (!this.isLoaded) {
-      console.warn('Cannot initialize autocomplete: Foursquare API not loaded yet');
-      return null;
-    }
-
     if (!inputElement) {
       console.error('Cannot initialize autocomplete: Input element is null or undefined');
       return null;
@@ -165,7 +147,7 @@ export class FoursquareProvider implements PlacesProvider {
    * Autocomplete locations (regions/countries/cities) using Foursquare's autocomplete API
    * This should be used for general location searches (not specific places like restaurants)
    */
-  private async autocompleteLocations(query: string): Promise<any[]> {
+  private async autocompleteLocations(query: string): Promise<any[]> {    
     try {
       // Build the URL with parameters
       const params = new URLSearchParams({
@@ -242,7 +224,7 @@ export class FoursquareProvider implements PlacesProvider {
         fields: 'name,location,geocodes' // Only request the fields we need
       });
       
-      // Make the API call to the backend proxy endpoint
+      // Make the API call
       const response = await fetch(
         `/api/proxy/foursquare/places?${params.toString()}`
       );
@@ -252,7 +234,7 @@ export class FoursquareProvider implements PlacesProvider {
       }
       
       const data = await response.json();
-      console.log('Foursquare search results:', data.results?.results);
+      console.log('Foursquare search results:', data.results);
       
       // Process the results to ensure they have the required fields
       const processedResults = (data.results || []).map((result: any) => {
@@ -369,8 +351,6 @@ export class FoursquareProvider implements PlacesProvider {
   }
 
   async geocodeAddress(address: string): Promise<{ lat: number, lng: number } | null> {
-    if (!this.isLoaded) return null;
-
     console.log('Foursquare geocodeAddress called with address:', address);
     
     if (!address || address.trim() === '') {
@@ -393,13 +373,13 @@ export class FoursquareProvider implements PlacesProvider {
         const result = data.results[0];
         
         if (result.geocodes && result.geocodes.main) {
-          console.log('Geocoded address using proxy API:', result.geocodes.main);
+          console.log('Geocoded address using places search API:', result.geocodes.main);
           return {
             lat: result.geocodes.main.latitude,
             lng: result.geocodes.main.longitude
           };
         } else {
-          console.warn('Geocoding result missing coordinates:', result);
+          console.warn('Places search geocoding result missing coordinates:', result);
         }
       } else {
         console.warn('No results found for address:', address);

@@ -62,12 +62,12 @@ export function usePlaces() {
   }, []);
   
   // Wrap provider methods to ensure they use the current provider
-  const initAutocomplete = (
+  const initAutocomplete = useCallback((
     inputElement: HTMLInputElement,
     onPlaceSelected: (place: PlaceResult) => void
   ) => {
     return getProvider().initAutocomplete(inputElement, onPlaceSelected);
-  };
+  }, [getProvider]);
   
   const showMap = useCallback((
     container: HTMLElement,

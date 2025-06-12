@@ -1,19 +1,7 @@
 import fetch from 'node-fetch';
-import config from './config';
 
-// API key will be loaded from config service
-let apiKey = '';
-
-// Initialize API key
-(async () => {
-  try {
-    const googleMapsConfig = await config.getGoogleMapsConfig();
-    apiKey = googleMapsConfig.apiKey;
-    console.log('Google Maps API key loaded successfully');
-  } catch (error) {
-    console.error('Failed to load Google Maps API key:', error);
-  }
-})();
+// Get Google Maps API key from environment variables
+const apiKey = process.env.GOOGLE_MAPS_KEY || '';
 
 // Type for location
 interface Location {

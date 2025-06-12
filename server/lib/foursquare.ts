@@ -1,5 +1,6 @@
 import fetch from 'node-fetch';
 import { FOOD_CATEGORIES, FOOD_CATEGORY_IDS } from '@shared/types';
+import { config } from 'dotenv';
 import { Location, Place, PlacePhoto, FilterOptions } from './foursquare.interfaces';
 import {
   normalizeFieldsInput,
@@ -13,21 +14,9 @@ import {
   calculateDistance,
   processPlace
 } from './foursquare.utils';
-import config from './config';
 
-// API key will be loaded from config service
-let apiKey = '';
-
-// Initialize API key
-(async () => {
-  try {
-    const foursquareConfig = await config.getFoursquareConfig();
-    apiKey = foursquareConfig.apiKey;
-    console.log('Foursquare API key loaded successfully');
-  } catch (error) {
-    console.error('Failed to load Foursquare API key:', error);
-  }
-})();
+// Get Foursquare API key from environment variables
+const apiKey = config().parsed?.FOURSQUARE_API_KEY || '';
 
 const categoryIds: string[] = [];
   

@@ -21,35 +21,9 @@ export function LocationInputField({ onLocationSelected }: LocationInputFieldPro
   useEffect(() => {
     console.log(`LocationInputField: Autocomplete useEffect triggered (using ${providerType} provider)`);
     
-    // Determine which API key to use based on provider
-    let apiKey;
-    let effectiveProvider = providerType;
-    
-    // For hybrid provider, we use Foursquare for autocomplete
-    if (providerType === 'hybrid') {
-      apiKey = import.meta.env.VITE_FOURSQUARE_PLACES_API_KEY;
-      // Use a string for logging purposes only, not for type assignment
-      const providerForLogging = 'foursquare (via hybrid)';
-      console.log(`Using ${providerForLogging} for autocomplete`);
-    } else if (providerType === 'google') {
-      apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    } else {
-      apiKey = import.meta.env.VITE_FOURSQUARE_PLACES_API_KEY;
-    }
-    
     // Clear any previous errors
     setAutocompleteError(null);
-    
-    if (!apiKey) {
-      console.error(`LocationInputField: ${providerType} API key is missing`);
-      setAutocompleteError(`${providerType.charAt(0).toUpperCase() + providerType.slice(1)} API key is missing. Please check your environment configuration.`);
-      return;
-    }
 
-    if (!isLoaded) {
-      console.log(`LocationInputField: ${providerType} API not loaded yet, waiting...`);
-      return;
-    }
     
     if (error) {
       console.error(`LocationInputField: ${providerType} API loading error:`, error);

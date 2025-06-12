@@ -2,7 +2,7 @@ import { PlacesProvider, PlaceResult } from './types';
 
 // Maps API Loader
 let googleMapsPromise: Promise<void> | null = null;
-
+const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 function loadGoogleMapsApi(): Promise<void> {
   if (googleMapsPromise) {
     console.log('Using existing Google Maps API promise');
@@ -11,6 +11,7 @@ function loadGoogleMapsApi(): Promise<void> {
 
   console.log('Creating new Google Maps API loading promise');
   googleMapsPromise = new Promise((resolve, reject) => {
+    
     // Define the callback function
     window.initGoogleMapsCallback = function() {
       console.log('Google Maps API loaded callback triggered');
@@ -25,8 +26,7 @@ function loadGoogleMapsApi(): Promise<void> {
     };
   
     const script = document.createElement('script');
-    // Use the backend proxy to load the Google Maps script
-    script.src = `/api/proxy/google/maps-script?libraries=places&callback=initGoogleMapsCallback`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&loading=async&libraries=places&callback=initGoogleMapsCallback`;
 
     script.async = true;
     script.defer = true;
@@ -56,6 +56,14 @@ export class GooglePlacesProvider implements PlacesProvider {
 
   private loadApi(): void {
     console.log('Loading Google Maps API...');
+    
+    if (!apiKey) {
+      console.error('Google Maps API key is missing. Check your environment configuration.');
+      this.error = new Error('Google Maps API key is missing');
+      return;
+    }
+    
+    console.log('API Key available:', apiKey ? 'Yes' : 'No');
     
     loadGoogleMapsApi()
       .then(() => {
@@ -137,21 +145,25 @@ export class GooglePlacesProvider implements PlacesProvider {
   }
 
   async geocodeAddress(address: string): Promise<{ lat: number, lng: number } | null> {
+    if (!this.isLoaded || !window.google) return null;
+
+    const geocoder = new window.google.maps.Geocoder();
+    
     try {
-      // Use the backend proxy for geocoding
-      const response = await fetch(`/api/proxy/google/geocode?address=${encodeURIComponent(address)}`);
-      
-      if (!response.ok) {
-        throw new Error(`Geocoding failed: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.results && data.results.length > 0) {
-        const location = data.results[0].geometry.location;
+      const result = await new Promise<any[]>((resolve, reject) => {
+        geocoder.geocode({ address }, (results: any[], status: any) => {
+          if (status === window.google.maps.GeocoderStatus.OK && results && results.length > 0) {
+            resolve(results);
+          } else {
+            reject(new Error(`Geocoding failed: ${status}`));
+          }
+        });
+      });
+
+      if (result && result[0] && result[0].geometry) {
         return {
-          lat: location.lat,
-          lng: location.lng
+          lat: result[0].geometry.location.lat(),
+          lng: result[0].geometry.location.lng()
         };
       }
       return null;
@@ -175,6 +187,6 @@ export class GooglePlacesProvider implements PlacesProvider {
   }
 
   getPhotoUrl(photoReference: string, maxWidth: number): string {
-    return `/api/proxy/google/place-photo?maxwidth=${maxWidth}&photoreference=${photoReference}`;
+    return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${maxWidth}&photoreference=${photoReference}&key=${apiKey}`;
   }
 }
