@@ -2,7 +2,7 @@ import { PlacesProvider, PlaceResult } from './types';
 
 // Maps API Loader
 let googleMapsPromise: Promise<void> | null = null;
-const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+const apiKey = process.env.VITE_GOOGLE_MAPS_API_KEY;
 function loadGoogleMapsApi(): Promise<void> {
   if (googleMapsPromise) {
     console.log('Using existing Google Maps API promise');
