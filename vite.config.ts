@@ -19,7 +19,7 @@ export default defineConfig({
     react(),
     runtimeErrorOverlay(),
     themePlugin(),
-    ...(process.env.NODE_ENV !== "production"
+    ...(process.env.NODE_ENV !== "prod"
       ? [
           await import("@replit/vite-plugin-cartographer").then((m) =>
             m.cartographer(),

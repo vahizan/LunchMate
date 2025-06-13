@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 // Maps API Loader
 let googleMapsPromise: Promise<void> | null = null;
+const apiKey = process.env.VITE_GOOGLE_MAPS_API_KEY;
 
 
 function loadGoogleMapsApi(): Promise<void> {
@@ -11,9 +12,7 @@ function loadGoogleMapsApi(): Promise<void> {
   }
 
   console.log('Creating new Google Maps API loading promise');
-  googleMapsPromise = new Promise((resolve, reject) => {
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    
+  googleMapsPromise = new Promise((resolve, reject) => {    
     if (!apiKey) {
       const error = new Error('Google Maps API key is missing');
       console.error(error);
@@ -60,9 +59,7 @@ export function useGooglePlaces() {
 
   // Load Google Maps API
   useEffect(() => {
-    console.log('Loading Google Maps API...');
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    
+    console.log('Loading Google Maps API...');    
     if (!apiKey) {
       console.error('Google Maps API key is missing. Check your .env file.');
       setError(new Error('Google Maps API key is missing'));

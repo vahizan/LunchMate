@@ -730,14 +730,16 @@ jobs:
       - build
       - approve-prod-deployment
       - deploy-networking
-      - deploy-backend
-      - deploy-frontend
+      # - deploy-backend
+      # - deploy-frontend
+     
+      #  &&
+      # (needs.deploy-backend.outputs.stack_status == '' ||
+      # contains(needs.deploy-backend.outputs.stack_status, 'COMPLETE'))
     runs-on: ubuntu-latest
     environment: prod
     if: |
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod') &&
-      (needs.deploy-backend.outputs.stack_status == '' ||
-      contains(needs.deploy-backend.outputs.stack_status, 'COMPLETE'))
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
     strategy:
       matrix:
         component: [frontend, backend]
