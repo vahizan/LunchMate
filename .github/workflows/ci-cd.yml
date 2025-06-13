@@ -180,13 +180,6 @@ jobs:
           npm ci --only=production
           rm package-lock.json
           
-          # Create necessary Elastic Beanstalk configuration files
-          mkdir -p .ebextensions
-          cat > .ebextensions/nodecommand.config <<EOL
-          option_settings:
-            aws:elasticbeanstalk:container:nodejs:
-              NodeCommand: "node dist/server/index.js"
-          EOL
           
           # Create Procfile
           echo "web: node dist/server/index.js" > Procfile
