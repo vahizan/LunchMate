@@ -186,9 +186,20 @@ jobs:
           option_settings:
             aws:elasticbeanstalk:container:nodejs:
               NodeCommand: "node dist/server/index.js"
-            aws:elasticbeanstalk:nodejs:
-              NodeVersion: 22
           EOL
+          
+          # Create platform.yaml for Node.js version
+          mkdir -p .platform
+          cat > .platform/hooks/prebuild/01_set_node_version.sh <<EOL
+          #!/bin/bash
+          # Install and use Node.js 22
+          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
+          export NVM_DIR="\$HOME/.nvm"
+          [ -s "\$NVM_DIR/nvm.sh" ] && \. "\$NVM_DIR/nvm.sh"
+          nvm install 22
+          nvm use 22
+          EOL
+          chmod +x .platform/hooks/prebuild/01_set_node_version.sh
           
           # Create Procfile
           echo "web: node dist/server/index.js" > Procfile
