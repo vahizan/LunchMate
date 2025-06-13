@@ -19,9 +19,8 @@ export class ConfigService {
   // Define secret paths in AWS Secrets Manager
   private readonly SECRET_PATHS = {
     GOOGLE_MAPS: 'EXTERNAL_APIS.GOOGLE_MAPS_KEY',
-    FOURSQUARE: 'EXTERNAL_APIS.FOURSQUARE_API_KEY',
-    SCRAPER_USER: 'SCRAPER_CONFIG.SCRAPE_OXYLABS_USER',
-    SCRAPER_PASS: 'SCRAPER_CONFIG.SCRAPE_OXYLABS_PASS',
+    FOURSQUARE_API_KEY: 'prod-foursquare',
+    SCRAPE_OXYLABS_SECRET: 'prod-oxylabs',
     DATABASE: 'DB_CONFIG',
   };
 
@@ -47,7 +46,7 @@ export class ConfigService {
   });
 
   private constructor() {
-    this.isProduction = process.env.NODE_ENV === 'production';
+    this.isProduction = process.env.NODE_ENV === 'prod';
     console.log(`ConfigService initialized in ${this.isProduction ? 'production' : 'development'} mode`);
   }
 
@@ -155,7 +154,7 @@ export class ConfigService {
       if (this.isProduction) {
         // In production, get from AWS Secrets Manager
         const apiKey = await secretsManager.getSecret(
-          this.SECRET_PATHS.FOURSQUARE,
+          this.SECRET_PATHS.FOURSQUARE_API_KEY,
           'FOURSQUARE_API_KEY'
         );
         return this.foursquareSchema.parse({ apiKey });
@@ -185,11 +184,11 @@ export class ConfigService {
       if (this.isProduction) {
         // In production, get from AWS Secrets Manager
         const oxyLabsUsername = await secretsManager.getSecret(
-          this.SECRET_PATHS.SCRAPER_USER,
+          this.SECRET_PATHS.SCRAPE_OXYLABS_SECRET,
           'SCRAPE_OXYLABS_USER'
         );
         const oxyLabsPassword = await secretsManager.getSecret(
-          this.SECRET_PATHS.SCRAPER_PASS,
+          this.SECRET_PATHS.SCRAPE_OXYLABS_SECRET,
           'SCRAPE_OXYLABS_PASS'
         );
         return this.scraperSchema.parse({ oxyLabsUsername, oxyLabsPassword });

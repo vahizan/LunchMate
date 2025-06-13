@@ -29,7 +29,7 @@ export class SecretsManagerService {
   private readonly isProduction: boolean;
 
   private constructor() {
-    this.isProduction = process.env.NODE_ENV === 'production';
+    this.isProduction = process.env.NODE_ENV === 'prod';
     
     // Initialize AWS Secrets Manager client
     const options: any = {
@@ -63,31 +63,6 @@ export class SecretsManagerService {
 
   /**
    * Fetch a secret from AWS Secrets Manager
-   * @param secretName The name of the secret to fetch
-   * @param envFallback The environment variable to use as fallback
-   * @returns The secret value
-   */
-  /**
-   * Get the path to the secrets in AWS Secrets Manager
-   * @returns The path to the secrets
-   */
-  private getSecretsPath(): string {
-    // Use the SECRETS_PATH environment variable if available
-    const secretsPath = process.env.SECRETS_PATH;
-    
-    if (!secretsPath) {
-      // Default to environment-specific path
-      const env = process.env.NODE_ENV || 'development';
-      return env === 'production'
-        ? 'production-findmylunch-secrets'
-        : 'development-findmylunch-secrets';
-    }
-    
-    return secretsPath;
-  }
-
-  /**
-   * Fetch a secret from AWS Secrets Manager
    * @param secretName The name of the secret to fetch (can be a JSON path like 'EXTERNAL_APIS.GOOGLE_MAPS_KEY')
    * @param envFallback The environment variable to use as fallback
    * @returns The secret value
@@ -107,38 +82,6 @@ export class SecretsManagerService {
         return cachedSecret.value;
       }
 
-      // Determine if this is a nested path or direct secret name
-      const isNestedPath = secretName.includes('.');
-      
-      // If it's a nested path, get the full secret and extract the value
-      if (isNestedPath) {
-        const secretsPath = this.getSecretsPath();
-        const fullSecret = await this.getFullSecret(secretsPath);
-        
-        // Parse the JSON and extract the nested value
-        const secretObj = JSON.parse(fullSecret);
-        const pathParts = secretName.split('.');
-        
-        let value = secretObj;
-        for (const part of pathParts) {
-          if (value === undefined || value === null) {
-            throw new Error(`Path ${secretName} not found in secret ${secretsPath}`);
-          }
-          value = value[part];
-        }
-        
-        if (value === undefined || value === null) {
-          throw new Error(`Path ${secretName} not found in secret ${secretsPath}`);
-        }
-        
-        // Cache the extracted value
-        this.secretsCache[secretName] = {
-          value: value.toString(),
-          timestamp: Date.now()
-        };
-        
-        return value.toString();
-      } else {
         // Fetch direct secret from AWS Secrets Manager
         console.log(`Fetching secret ${secretName} from AWS Secrets Manager`);
         const params: GetSecretValueCommandInput = {
@@ -159,7 +102,7 @@ export class SecretsManagerService {
         };
 
         return response.SecretString;
-      }
+      
     } catch (error) {
       console.error(`Error fetching secret ${secretName}:`, error);
       
