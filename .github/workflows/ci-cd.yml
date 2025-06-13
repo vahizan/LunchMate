@@ -801,8 +801,10 @@ jobs:
         with:
           aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          application_name: ${{ vars.EB_APPLICATION_NAME || format('findmylunch-{0}', github.event.inputs.environment) }}
-          environment_name: ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME_PROD }}
+          # application_name: ${{ vars.EB_APPLICATION_NAME || format('findmylunch-{0}', github.event.inputs.environment) }}
+          # environment_name: ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME_PROD }}
+          application_name: findmylunch-prod
+          environment_name: findmylunch-prod
           version_label: "${{ github.event.inputs.deploy_version || format('findmylunch-backend-prod-{0}-{1}', github.run_number, github.run_attempt) }}"
           region: ${{ vars.AWS_REGION }}
           deployment_package: eb-bundle.zip
