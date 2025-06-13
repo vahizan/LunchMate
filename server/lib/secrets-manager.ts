@@ -33,7 +33,7 @@ export class SecretsManagerService {
     
     // Initialize AWS Secrets Manager client
     const options: any = {
-      region: process.env.AWS_REGION || 'eu-west-1'
+      region: process.env.AWS_REGION || 'us-east-1'
     };
     
     // In local development, use provided credentials if available

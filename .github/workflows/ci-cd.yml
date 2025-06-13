@@ -658,7 +658,7 @@ jobs:
           aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           application_name: ${{ secrets.EB_APPLICATION_NAME || format('findmylunch-{0}', github.event.inputs.environment || 'qa') }}
-          environment_name: ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME }}
+          environment_name: ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME_QA }}
           version_label: "${{ github.event.inputs.deploy_version || format('findmylunch-backend-{0}-{1}-{2}', github.event.inputs.environment || 'qa', github.run_number, github.run_attempt) }}"
           region: ${{ vars.AWS_REGION }}
           deployment_package: eb-bundle.zip
@@ -678,14 +678,14 @@ jobs:
           
           if [ -z "$EB_ENV_URL" ]; then
             EB_ENV_URL=$(aws elasticbeanstalk describe-environments \
-              --environment-names ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME }} \
+              --environment-names ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME_QA }} \
               --query "Environments[0].CNAME" \
               --output text)
           fi
             
           # Check health status
           HEALTH_STATUS=$(aws elasticbeanstalk describe-environments \
-            --environment-names ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME }} \
+            --environment-names ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME_QA }} \
             --query "Environments[0].Health" \
             --output text)
             
@@ -695,7 +695,7 @@ jobs:
           if [ "$HEALTH_STATUS" != "Green" ]; then
             echo "Environment health is not Green. Checking health events..."
             aws elasticbeanstalk describe-events \
-              --environment-name ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME }} \
+              --environment-name ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME_QA }} \
               --max-items 10
               
             # Continue but mark as warning
@@ -770,7 +770,7 @@ jobs:
         run: |
           # Get S3 bucket name from CloudFormation stack outputs
           BUCKET_NAME=$(aws cloudformation describe-stacks \
-            --stack-name findmylunch-prod \
+            --stack-name findmylunch-prod-frontend \
             --query "Stacks[0].Outputs[?ExportName=='prod-FindMyLunch-WebsiteBucketName'].OutputValue" \
             --output text)
           
@@ -788,7 +788,7 @@ jobs:
         run: |
           # Get CloudFront distribution ID from CloudFormation stack outputs
           DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
-            --stack-name findmylunch-prod \
+            --stack-name findmylunch-prod-frontend \
             --query "Stacks[0].Outputs[?ExportName=='prod-FindMyLunch-CloudFrontDistributionId'].OutputValue" \
             --output text)
           
