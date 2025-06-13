@@ -181,8 +181,8 @@ jobs:
           rm package-lock.json
           
           
-          # Create Procfile
-          echo "web: node dist/server/index.js" > Procfile
+          # # Create Procfile
+          # echo "web: node dist/server/index.js" > Procfile
           
           # Create healthcheck endpoint file if it doesn't exist
           if [ ! -f "healthcheck.js" ]; then
