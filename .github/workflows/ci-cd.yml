@@ -158,6 +158,7 @@ jobs:
         run: |
           echo "VITE_GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_KEY }}" >> .env.production
           echo "VITE_PLACES_PROVIDER=${{ vars.PROVIDER_TYPE }}" >> .env.production
+          echo "API_URL=${{ vars.API_URL }}" >> .env.production
 
       - name: Build frontend
         if: matrix.component == 'frontend'
@@ -181,10 +182,11 @@ jobs:
           
           # Create necessary Elastic Beanstalk configuration files
           mkdir -p .ebextensions
-          cat > .ebextensions/nodecommand.config << 'EOL'
+          cat > .ebextensions/nodecommand.config <<EOL
           option_settings:
             aws:elasticbeanstalk:container:nodejs:
               NodeCommand: "node dist/server/index.js"
+            aws:elasticbeanstalk:nodejs:
               NodeVersion: 22
           EOL
           

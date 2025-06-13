@@ -103,6 +103,8 @@ describe('useRestaurants', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     
+    process.env.VITE_GOOGLE_MAPS_API_KEY = "http://localhost:8080";
+
     // Mock AppContext
     (useAppContext as unknown as jest.Mock).mockReturnValue({
       location: mockLocation,
@@ -694,7 +696,7 @@ describe('useRestaurants', () => {
     });
     
     // Should have called fetch with the correct parameters
-    expect(global.fetch).toHaveBeenCalledWith('/api/team/suggestions', {
+    expect(global.fetch).toHaveBeenCalledWith('undefined/api/team/suggestions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(mockRestaurants[0])

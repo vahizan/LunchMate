@@ -25,6 +25,7 @@ interface RestaurantIdsResponse {
 }
 
 export function useRestaurants(props?: { limit?: string }) {
+  const API_URL = process.env.API_URL;
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { location, filters, visitHistory } = useAppContext();
@@ -186,7 +187,7 @@ export function useRestaurants(props?: { limit?: string }) {
         // Make the request
         console.log(`useRestaurants - fetching page with params:`, params.toString());
         console.log(`useRestaurants - current cursor:`, currentCursor);
-        const response = await fetch(`/api/restaurants?${params.toString()}`);
+        const response = await fetch(`${API_URL}/api/restaurants?${params.toString()}`);
         
         if (!response.ok) {
           throw new Error('Failed to fetch restaurants');
@@ -280,7 +281,7 @@ export function useRestaurants(props?: { limit?: string }) {
           params.set('cursor', cursor);
         }
         
-        const response = await fetch(`/api/restaurants/ids?${params.toString()}`);
+        const response = await fetch(`${API_URL}/api/restaurants/ids?${params.toString()}`);
         if (!response.ok) {
           throw new Error('Failed to fetch restaurant IDs');
         }
@@ -378,7 +379,7 @@ export function useRestaurants(props?: { limit?: string }) {
       
       // Fetch full details for the selected restaurant
       console.log(`Fetching details for restaurant ID: ${randomId}`);
-      const detailsResponse = await fetch(`/api/restaurants/${randomId}?${restaurantByIdParams}`);
+      const detailsResponse = await fetch(`${API_URL}/api/restaurants/${randomId}?${restaurantByIdParams}`);
       
       if (!detailsResponse.ok) {
         throw new Error('Failed to fetch restaurant details');
@@ -400,7 +401,7 @@ export function useRestaurants(props?: { limit?: string }) {
           console.log("RESTAURANT", restaurant);
 
           
-          const crowdResponse = await fetch(`/api/restaurants/${randomId}/crowd-level?${params.toString()}`);
+          const crowdResponse = await fetch(`${API_URL}/api/restaurants/${randomId}/crowd-level?${params.toString()}`);
           
           if (crowdResponse.ok) {
             const crowdData = await crowdResponse.json();
@@ -441,7 +442,7 @@ export function useRestaurants(props?: { limit?: string }) {
   // Add restaurant to team suggestion
   const addToTeamMutation = useMutation({
     mutationFn: async (restaurant: Restaurant) => {
-      const response = await fetch('/api/team/suggestions', {
+      const response = await fetch(API_URL+'/api/team/suggestions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(restaurant),

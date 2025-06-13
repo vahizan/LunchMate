@@ -26,7 +26,7 @@ export default function RestaurantDetails() {
 
   // Only fetch from API if we don't have data in context
   const { data: fetchedRestaurant, isLoading } = useQuery<Restaurant>({
-    queryKey: [`/api/restaurants/${id}`],
+    queryKey: [`${process.env.API_URL}/api/restaurants/${id}`],
     enabled: !selectedRestaurant, // Only run the query if we don't have data in context
   });
 

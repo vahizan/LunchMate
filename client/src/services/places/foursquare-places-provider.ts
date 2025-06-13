@@ -6,6 +6,7 @@ export class FoursquareProvider implements PlacesProvider {
   private apiKey: string | undefined;
   private map: any = null;
 
+  private API_URL = process.env.API_URL;
 
   initAutocomplete(inputElement: HTMLInputElement, onPlaceSelected: (place: PlaceResult) => void): any {
     if (!inputElement) {
@@ -158,7 +159,7 @@ export class FoursquareProvider implements PlacesProvider {
       
       // Make the API call to the backend proxy endpoint
       const response = await fetch(
-        `/api/proxy/foursquare/autocomplete?${params.toString()}`
+        `${this.API_URL}/api/proxy/foursquare/autocomplete?${params.toString()}`
       );
       
       if (!response.ok) {
@@ -226,7 +227,7 @@ export class FoursquareProvider implements PlacesProvider {
       
       // Make the API call
       const response = await fetch(
-        `/api/proxy/foursquare/places?${params.toString()}`
+        `${this.API_URL}/api/proxy/foursquare/places?${params.toString()}`
       );
       
       if (!response.ok) {
@@ -360,7 +361,7 @@ export class FoursquareProvider implements PlacesProvider {
     
     try {
       // Use the backend proxy for geocoding
-      const response = await fetch(`/api/proxy/foursquare/geocode?address=${encodeURIComponent(address)}`);
+      const response = await fetch(`${this.API_URL}/api/proxy/foursquare/geocode?address=${encodeURIComponent(address)}`);
       
       if (!response.ok) {
         throw new Error(`Geocoding error: ${response.status}`);
@@ -401,6 +402,6 @@ export class FoursquareProvider implements PlacesProvider {
     }
     
     // Use the backend proxy for photos
-    return `/api/proxy/foursquare/place-photo?reference=${encodeURIComponent(photoReference)}&maxwidth=${maxWidth}`;
+    return `${this.API_URL}/api/proxy/foursquare/place-photo?reference=${encodeURIComponent(photoReference)}&maxwidth=${maxWidth}`;
   }
 }
