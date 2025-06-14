@@ -1,0 +1,18 @@
+[
+  {
+    "ParameterKey": "EnvironmentName",
+    "ParameterValue": "prod"
+  },
+  {
+    "ParameterKey": "DomainName",
+    "ParameterValue": "findmylunch.net"
+  },
+  {
+    "ParameterKey": "SubDomainPrefix",
+    "ParameterValue": "www"
+  },
+  {
+    "ParameterKey": "CreateRoute53Records",
+    "ParameterValue": "true"
+  }
+]
