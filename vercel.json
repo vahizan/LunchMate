@@ -2,6 +2,9 @@
   "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory":"dist/client",
+  "installCommand": "npm install",
+  "framework": "vite",
+  "devCommand": "npm run dev",
   "builds": [
     {
       "src": "dist/index.js",
