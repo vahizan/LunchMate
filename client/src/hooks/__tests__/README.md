@@ -1,6 +1,6 @@
 # Hook Tests
 
-This directory contains unit tests for React hooks used in the LunchMate application.
+This directory contains unit tests for React hooks used in the FindMyLunch application.
 
 ## Running Tests
 

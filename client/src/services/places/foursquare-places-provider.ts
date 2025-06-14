@@ -2,39 +2,13 @@ import { PlacesProvider, PlaceResult } from './types';
 import L from 'leaflet';
 
 export class FoursquareProvider implements PlacesProvider {
-  isLoaded: boolean = false;
   error: Error | null = null;
   private apiKey: string | undefined;
   private map: any = null;
 
-  constructor() {
-    this.apiKey = process.env.VITE_FOURSQUARE_PLACES_API_KEY;
-    // Load Foursquare API
-    this.loadApi();
-    
-  }
-
-  private loadApi(): void {
-    console.log('Loading Foursquare API...');
-    
-    if (!this.apiKey) {
-      console.error('Foursquare API key is missing. Check your .env file.');
-      this.error = new Error('Foursquare API key is missing');
-      return;
-    }
-    
-    // Foursquare doesn't require a script to be loaded like Google Maps
-    // Just verify the API key is available and mark as loaded
-    this.isLoaded = true;
-    console.log('Foursquare API ready to use');
-  }
+  private API_URL = process.env.API_URL;
 
   initAutocomplete(inputElement: HTMLInputElement, onPlaceSelected: (place: PlaceResult) => void): any {
-    if (!this.isLoaded) {
-      console.warn('Cannot initialize autocomplete: Foursquare API not loaded yet');
-      return null;
-    }
-
     if (!inputElement) {
       console.error('Cannot initialize autocomplete: Input element is null or undefined');
       return null;
@@ -183,15 +157,9 @@ export class FoursquareProvider implements PlacesProvider {
         types: 'geo' // Focus on geographic entities (regions/countries/cities)
       });
       
-      // Make the API call to the autocomplete endpoint
+      // Make the API call to the backend proxy endpoint
       const response = await fetch(
-        `https://api.foursquare.com/v3/autocomplete?${params.toString()}`,
-        {
-          headers: {
-            'Authorization': `${this.apiKey}`,
-            'Accept': 'application/json'
-          }
-        }
+        `${this.API_URL}/api/proxy/foursquare/autocomplete?${params.toString()}`
       );
       
       if (!response.ok) {
@@ -259,13 +227,7 @@ export class FoursquareProvider implements PlacesProvider {
       
       // Make the API call
       const response = await fetch(
-        `https://api.foursquare.com/v3/places/search?${params.toString()}`,
-        {
-          headers: {
-            'Authorization': `${this.apiKey}`,
-            'Accept': 'application/json'
-          }
-        }
+        `${this.API_URL}/api/proxy/foursquare/places?${params.toString()}`
       );
       
       if (!response.ok) {
@@ -390,8 +352,6 @@ export class FoursquareProvider implements PlacesProvider {
   }
 
   async geocodeAddress(address: string): Promise<{ lat: number, lng: number } | null> {
-    if (!this.isLoaded) return null;
-
     console.log('Foursquare geocodeAddress called with address:', address);
     
     if (!address || address.trim() === '') {
@@ -400,43 +360,8 @@ export class FoursquareProvider implements PlacesProvider {
     }
     
     try {
-      // First try using the autocomplete API for regions/countries/cities
-      console.log('Trying autocomplete API for geocoding');
-      const autocompleteResults = await this.autocompleteLocations(address);
-      
-      if (autocompleteResults && autocompleteResults.length > 0) {
-        const result = autocompleteResults[0];
-        
-        if (result.geocodes && result.geocodes.main) {
-          console.log('Geocoded address using autocomplete API:', result.geocodes.main);
-          return {
-            lat: result.geocodes.main.latitude,
-            lng: result.geocodes.main.longitude
-          };
-        } else {
-          console.warn('Autocomplete geocoding result missing coordinates:', result);
-        }
-      }
-      
-      // Fall back to places search API if no results from autocomplete
-      console.log('No results from autocomplete API, falling back to places search');
-      
-      // Use the Foursquare search API as fallback
-      const params = new URLSearchParams({
-        query: address,
-        limit: '1', // Only need the top result
-        fields: 'geocodes' // Only request the geocodes field
-      });
-      
-      const response = await fetch(
-        `https://api.foursquare.com/v3/places/search?${params.toString()}`,
-        {
-          headers: {
-            'Authorization': `${this.apiKey}`,
-            'Accept': 'application/json'
-          }
-        }
-      );
+      // Use the backend proxy for geocoding
+      const response = await fetch(`${this.API_URL}/api/proxy/foursquare/geocode?address=${encodeURIComponent(address)}`);
       
       if (!response.ok) {
         throw new Error(`Geocoding error: ${response.status}`);
@@ -476,22 +401,7 @@ export class FoursquareProvider implements PlacesProvider {
       return `https://via.placeholder.com/${maxWidth}x${maxWidth}?text=No+Image+Available`;
     }
     
-    // Foursquare photo references are direct URLs
-    // We just need to add the size parameter
-    // Format: https://fastly.4sqi.net/img/general/widthxheight/PHOTO_ID
-    
-    // Check if it's already a full URL
-    if (photoReference.startsWith('http')) {
-      // Try to modify the URL to include the requested size if it's a Foursquare URL
-      if (photoReference.includes('fastly.4sqi.net/img/')) {
-        // Replace the size in the URL
-        return photoReference.replace(/\/\d+x\d+\//, `/${maxWidth}x${maxWidth}/`);
-      }
-      // If it's some other URL, just return it as is
-      return photoReference;
-    }
-    
-    // If it's just a photo ID, construct the full URL
-    return `https://fastly.4sqi.net/img/general/${maxWidth}x${maxWidth}/${photoReference}`;
+    // Use the backend proxy for photos
+    return `${this.API_URL}/api/proxy/foursquare/place-photo?reference=${encodeURIComponent(photoReference)}&maxwidth=${maxWidth}`;
   }
 }

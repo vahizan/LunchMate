@@ -12,52 +12,13 @@ export class HybridPlacesProvider implements PlacesProvider {
   
   private foursquareProvider: FoursquareProvider;
   private googleProvider: GooglePlacesProvider;
-  private googleApiKey: string | undefined;
   
   constructor() {
     // Initialize both providers
     this.foursquareProvider = new FoursquareProvider();
     this.googleProvider = new GooglePlacesProvider();
-    this.googleApiKey = process.env.VITE_GOOGLE_MAPS_API_KEY;
-    
-    // Track loading state
-    this.checkLoadingState();
   }
   
-  private checkLoadingState() {
-    // Set up an interval to check both providers' loaded state
-    const checkLoaded = () => {
-      // We need both providers to be loaded
-      const googleLoaded = this.googleProvider.isLoaded;
-      const foursquareLoaded = this.foursquareProvider.isLoaded;
-      
-      console.log(`HybridProvider: Checking loading state - Google: ${googleLoaded}, Foursquare: ${foursquareLoaded}`);
-      
-      if (googleLoaded && foursquareLoaded) {
-        this.isLoaded = true;
-        clearInterval(interval);
-        console.log('HybridProvider: Both providers loaded successfully');
-      }
-      
-      // If either provider has an error, propagate it
-      if (this.googleProvider.error) {
-        this.error = this.googleProvider.error;
-        console.error('HybridProvider: Google provider error:', this.error);
-      } else if (this.foursquareProvider.error) {
-        this.error = this.foursquareProvider.error;
-        console.error('HybridProvider: Foursquare provider error:', this.error);
-      }
-    };
-    
-    // Check immediately
-    checkLoaded();
-    
-    // Then check periodically
-    const interval = setInterval(checkLoaded, 500);
-    
-    // Clean up after 30 seconds to avoid memory leaks
-    setTimeout(() => clearInterval(interval), 30000);
-  }
   
   /**
    * Initialize autocomplete using Foursquare

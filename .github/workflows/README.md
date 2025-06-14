@@ -1,6 +1,6 @@
-# LunchMate CI/CD Workflow
+# FindMyLunch CI/CD Workflow
 
-This directory contains the CI/CD workflow configuration for the LunchMate application. The workflow is designed to automate testing, building, and deploying both frontend and backend components to multiple environments.
+This directory contains the CI/CD workflow configuration for the FindMyLunch application. The workflow is designed to automate testing, building, and deploying both frontend and backend components to multiple environments.
 
 ## Workflow Overview
 
@@ -58,7 +58,7 @@ Use the GitHub Actions workflow dispatch with the following options:
 
 To manually trigger a deployment to QA for the frontend only:
 1. Go to the Actions tab in GitHub
-2. Select the "LunchMate CI/CD" workflow
+2. Select the "FindMyLunch CI/CD" workflow
 3. Click "Run workflow"
 4. Select "qa" for environment and "frontend" for component
 5. Click "Run workflow"
