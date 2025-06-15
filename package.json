@@ -19,6 +19,7 @@
     "debug:scraper": "node --inspect-brk ./node_modules/jest/bin/jest --testPathPattern='scraper.test'"
   },
   "dependencies": {
+    "@aws-sdk/client-secrets-manager":"3.828.0",
     "@fortawesome/fontawesome-free": "^6.7.2",
     "@hookform/resolvers": "^3.9.1",
     "@jridgewell/trace-mapping": "^0.3.25",
@@ -130,5 +131,8 @@
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
+  },
+  "volta": {
+    "node": "22.16.0"
   }
 }

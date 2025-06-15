@@ -3,10 +3,7 @@ import { log, serveStatic, setupVite } from "./vite";
 import { registerRoutes } from "./routes";
 import { scrapingConfig } from "./config/scraper-config";
 import { ScraperService } from "./lib/scraper";
-import dotenv from "dotenv";
-
-// Load environment variables
-dotenv.config();
+import 'dotenv/config';
 
 const app = express();
 app.use(express.json());
@@ -85,7 +82,7 @@ app.use((req, res, next) => {
   server.listen({
     port,
     host: "0.0.0.0", // Changed from 127.0.0.1 to allow external connections
-    reusePort: true,
+    // Removed reusePort option as it's not supported on all platforms
   }, () => {
     log(`serving on port ${port}`);
   });

@@ -3,10 +3,9 @@ import {
   GetSecretValueCommand,
   GetSecretValueCommandInput 
 } from '@aws-sdk/client-secrets-manager';
-import dotenv from 'dotenv';
 
 // Load environment variables
-dotenv.config();
+import 'dotenv/config';
 
 // Cache for secrets to avoid repeated API calls
 interface SecretCache {
