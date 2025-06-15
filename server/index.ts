@@ -12,6 +12,15 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Add health check endpoint for Elastic Beanstalk
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    environment: process.env.NODE_ENV,
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -72,10 +81,10 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  const port = 8080;
+  const port = process.env.PORT || 8080;
   server.listen({
     port,
-    host: "127.0.0.1",
+    host: "0.0.0.0", // Changed from 127.0.0.1 to allow external connections
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);

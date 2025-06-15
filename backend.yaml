@@ -138,7 +138,7 @@ Resources:
               Service: ec2.amazonaws.com
             Action: 'sts:AssumeRole'
       ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
         - 'arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy'
         - 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
@@ -253,6 +253,26 @@ Resources:
             OptionName: DefaultProcess
             Value: default
           - !Ref AWS::NoValue
+
+        # Health Check Configuration
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: HealthCheckPath
+          Value: /health
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: HealthCheckInterval
+          Value: 15
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: HealthCheckTimeout
+          Value: 5
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: HealthyThresholdCount
+          Value: 3
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: UnhealthyThresholdCount
+          Value: 5
+        - Namespace: aws:elasticbeanstalk:environment:process:default
+          OptionName: MatcherHTTPCode
+          Value: 200-299
 
         # Instance Configuration
         - Namespace: aws:autoscaling:launchconfiguration
