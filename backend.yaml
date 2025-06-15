@@ -43,7 +43,7 @@ Parameters:
   MinInstances:
     Description: Minimum number of instances in the Auto Scaling group
     Type: Number
-    Default: 1
+    Default: 2
     MinValue: 1
     MaxValue: 10
 
@@ -149,6 +149,21 @@ Resources:
           Value: !Ref EnvironmentName
         - Key: Application
           Value: FindMyLunch
+
+  # IAM Policy for Elastic Beanstalk Health Reporting
+  ElasticBeanstalkHealthPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub ${EnvironmentName}-findmylunch-eb-health-policy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'elasticbeanstalk:PutInstanceStatistics'
+            Resource: '*'
+      Roles:
+        - !Ref EC2Role
 
   # IAM Policy for Secrets Manager Access
   SecretsManagerPolicy:
@@ -263,7 +278,7 @@ Resources:
           Value: 15
         - Namespace: aws:elasticbeanstalk:environment:process:default
           OptionName: HealthCheckTimeout
-          Value: 5
+          Value: 10
         - Namespace: aws:elasticbeanstalk:environment:process:default
           OptionName: HealthyThresholdCount
           Value: 3
@@ -355,10 +370,10 @@ Resources:
           Value: Rolling
         - Namespace: aws:elasticbeanstalk:command
           OptionName: BatchSizeType
-          Value: Percentage
+          Value: Fixed
         - Namespace: aws:elasticbeanstalk:command
           OptionName: BatchSize
-          Value: 25
+          Value: 1
 
         # Logs
         - Namespace: aws:elasticbeanstalk:cloudwatch:logs
