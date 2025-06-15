@@ -3,14 +3,20 @@ import { log, serveStatic, setupVite } from "./vite";
 import { registerRoutes } from "./routes";
 import { scrapingConfig } from "./config/scraper-config";
 import { ScraperService } from "./lib/scraper";
-import dotenv from "dotenv";
-
-// Load environment variables
-dotenv.config();
+import 'dotenv/config';
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Add health check endpoint for Elastic Beanstalk
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    environment: process.env.NODE_ENV,
+    timestamp: new Date().toISOString()
+  });
+});
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -72,14 +78,11 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
+  const port = process.env.PORT || 8080;
   server.listen({
     port,
-    host: "0.0.0.0",
-    reusePort: true,
+    host: "0.0.0.0", // Changed from 127.0.0.1 to allow external connections
+    // Removed reusePort option as it's not supported on all platforms
   }, () => {
     log(`serving on port ${port}`);
   });

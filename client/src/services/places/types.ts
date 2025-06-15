@@ -3,7 +3,6 @@ import { Location } from "@/types";
 // Common interface for all place providers
 export interface PlacesProvider {
   // Status
-  isLoaded: boolean;
   error: Error | null;
   
   // Autocomplete functionality

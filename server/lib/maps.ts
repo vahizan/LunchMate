@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
 
 // Get Google Maps API key from environment variables
-const apiKey = process.env.GOOGLE_MAPS_API_KEY || '';
+const apiKey = process.env.GOOGLE_MAPS_KEY || '';
 
 // Type for location
 interface Location {
@@ -230,7 +230,6 @@ export async function calculateTravelInfo(
     }
     
     // Make the request
-    console.log('Fetching travel info from Google Distance Matrix API:', url);
     const response = await fetch(url);
     const data = await response.json();
     

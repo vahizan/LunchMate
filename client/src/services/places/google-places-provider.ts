@@ -2,7 +2,7 @@ import { PlacesProvider, PlaceResult } from './types';
 
 // Maps API Loader
 let googleMapsPromise: Promise<void> | null = null;
-
+const apiKey = process.env.VITE_GOOGLE_MAPS_API_KEY;
 function loadGoogleMapsApi(): Promise<void> {
   if (googleMapsPromise) {
     console.log('Using existing Google Maps API promise');
@@ -11,14 +11,6 @@ function loadGoogleMapsApi(): Promise<void> {
 
   console.log('Creating new Google Maps API loading promise');
   googleMapsPromise = new Promise((resolve, reject) => {
-    const apiKey = process.env.VITE_GOOGLE_MAPS_API_KEY;
-    
-    if (!apiKey) {
-      const error = new Error('Google Maps API key is missing');
-      console.error(error);
-      reject(error);
-      return;
-    }
     
     // Define the callback function
     window.initGoogleMapsCallback = function() {
@@ -64,10 +56,9 @@ export class GooglePlacesProvider implements PlacesProvider {
 
   private loadApi(): void {
     console.log('Loading Google Maps API...');
-    const apiKey = process.env.VITE_GOOGLE_MAPS_API_KEY;
     
     if (!apiKey) {
-      console.error('Google Maps API key is missing. Check your .env file.');
+      console.error('Google Maps API key is missing. Check your environment configuration.');
       this.error = new Error('Google Maps API key is missing');
       return;
     }
@@ -196,7 +187,6 @@ export class GooglePlacesProvider implements PlacesProvider {
   }
 
   getPhotoUrl(photoReference: string, maxWidth: number): string {
-    const apiKey = process.env.VITE_GOOGLE_MAPS_API_KEY;
     return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${maxWidth}&photoreference=${photoReference}&key=${apiKey}`;
   }
 }
