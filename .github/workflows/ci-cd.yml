@@ -173,26 +173,25 @@ jobs:
           # Create Elastic Beanstalk bundle
           mkdir -p eb-bundle
           cp -r dist/* eb-bundle/
+          cp -r .ebextensions/* eb-bundle/
           
           # Copy package files but install only production dependencies
           cp package.json package-lock.json eb-bundle/
+          cp Procfile eb-bundle/
           cd eb-bundle
-          npm ci --only=production
-          rm package-lock.json
           
+          # npm ci --only=production
+          # rm package-lock.json
           
-          # # Create Procfile
-          # echo "web: node dist/server/index.js" > Procfile
-          
-          # Create healthcheck endpoint file if it doesn't exist
-          if [ ! -f "healthcheck.js" ]; then
-            cat > healthcheck.js << 'EOL'
-          // Simple health check endpoint
-          app.get('/health', (req, res) => {
-            res.status(200).json({ status: 'healthy', environment: process.env.NODE_ENV });
-          });
-          EOL
-          fi
+          # # Create healthcheck endpoint file if it doesn't exist
+          # if [ ! -f "healthcheck.js" ]; then
+          #   cat > healthcheck.js << 'EOL'
+          # // Simple health check endpoint
+          # app.get('/health', (req, res) => {
+          #   res.status(200).json({ status: 'healthy', environment: process.env.NODE_ENV });
+          # });
+          # EOL
+          # fi
           
           # Create zip bundle
           zip -r ../eb-bundle.zip .
