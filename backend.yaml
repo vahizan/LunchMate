@@ -194,13 +194,6 @@ Resources:
     Properties:
       ApplicationName: !Sub ${EnvironmentNamePrefix}-${EnvironmentName}
       Description: !Sub "FindMyLunch ${EnvironmentName} Backend Application"
-      # Tags:
-      #   - Key: Name
-      #     Value: !Sub ${EnvironmentName}-findmylunch-application
-      #   - Key: Environment
-      #     Value: !Ref EnvironmentName
-      #   - Key: Application
-      #     Value: FindMyLunch
 
   # Elastic Beanstalk Environment
   ElasticBeanstalkEnvironment:

@@ -32,8 +32,19 @@ export class SecretsManagerService {
     
     // Initialize AWS Secrets Manager client
     const options: any = {
-      region: process.env.AWS_REGION || 'us-east-1'
+      region: process.env.AWS_REGION
     };
+    
+    if (!options.region) {
+      console.warn('AWS_REGION environment variable not set. This may cause connectivity issues in production.');
+      // Only use fallback in development
+      if (!this.isProduction) {
+        // Use the same default region as in the CI/CD workflow for consistency
+        const fallbackRegion = process.env.DEFAULT_REGION || 'us-east-1';
+        console.log(`Using ${fallbackRegion} as fallback region for local development only`);
+        options.region = fallbackRegion;
+      }
+    }
     
     // In local development, use provided credentials if available
     if (!this.isProduction && process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
