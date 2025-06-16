@@ -120,6 +120,21 @@ Resources:
       Roles:
         - !Ref EC2Role
 
+   # IAM Policy for Elastic Beanstalk Health Reporting
+  ElasticBeanstalkHealthPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub ${EnvironmentName}-findmylunch-eb-health-policy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'elasticbeanstalk:PutInstanceStatistics'
+            Resource: '*'
+      Roles:
+        - !Ref EC2Role     
+
   # Elastic Beanstalk Application
   ElasticBeanstalkApplication:
     Type: AWS::ElasticBeanstalk::Application
