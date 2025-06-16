@@ -1,18 +1,24 @@
 import express, { Request, Response, NextFunction } from "express";
-import { log, serveStatic, setupVite } from "./vite";
+import { serveStatic, setupVite } from "./vite";
 import { registerRoutes } from "./routes";
 import { scrapingConfig } from "./config/scraper-config";
 import { ScraperService } from "./lib/scraper";
+import fs from 'fs';
 import 'dotenv/config';
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
+
+  var log = function(entry: any) {
+      fs.appendFileSync('/tmp/findmylunch-api.log', new Date().toISOString() + ' - ' + entry + '\n');
+  };
 
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
@@ -35,6 +41,25 @@ app.use((req, res, next) => {
       log(logLine);
     }
   });
+
+   if (req.method === 'POST') {
+        var body = '';
+
+        req.on('data', function(chunk) {
+            body += chunk;
+        });
+
+        req.on('end', function() {
+            if (req.url === '/') {
+                log('Received message: ' + body);
+            } else if (req.url = '/scheduled') {
+                log('Received task ' + req.headers['x-aws-sqsd-taskname'] + ' scheduled at ' + req.headers['x-aws-sqsd-scheduled-at']);
+            }
+
+            res.writeHead(200, 'OK', {'Content-Type': 'text/plain'});
+            res.end();
+        });
+    }
 
   next();
 });
@@ -90,9 +115,7 @@ app.use((req, res, next) => {
   }
 
   const port = process.env.PORT || 3000;
-  server.listen(port, () => {
-    log(`serving on port ${port}`);
-  });
+  server.listen(port);
 
   // Handle graceful shutdown
   const gracefulShutdown = async () => {
