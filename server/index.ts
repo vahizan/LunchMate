@@ -89,12 +89,8 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  const port = process.env.PORT || 8080;
-  server.listen({
-    port,
-    host: "0.0.0.0", // Changed from 127.0.0.1 to allow external connections
-    // Removed reusePort option as it's not supported on all platforms
-  }, () => {
+  const port = process.env.PORT || 3000;
+  server.listen(port, () => {
     log(`serving on port ${port}`);
   });
 
