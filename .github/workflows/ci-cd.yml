@@ -518,7 +518,21 @@ jobs:
               else
                 echo "WARNING: API Gateway Certificate ARN not found in us-east-1 region"
                 echo "This may cause deployment failures if the certificate is required"
-              fi 
+              fi
+              
+              # Add API Gateway Domain Name from the networking stack
+              API_GATEWAY_DOMAIN=$(aws cloudformation describe-stacks \
+                --stack-name "findmylunch-${ENV}-networking" \
+                --query "Stacks[0].Outputs[?OutputKey=='ApiGatewayDomainNameOutput'].OutputValue" \
+                --output text 2>/dev/null || echo "")
+              
+              if [ -n "$API_GATEWAY_DOMAIN" ]; then
+                jq '. += [{"ParameterKey": "ApiGatewayDomainName", "ParameterValue": "'"$API_GATEWAY_DOMAIN"'"}]' backend-params.json > backend-params-temp.json
+                mv backend-params-temp.json backend-params.json
+              else
+                echo "WARNING: API Gateway Domain Name not found in networking stack"
+                echo "This may cause deployment failures if the API Gateway domain is required"
+              fi
            fi
 
    # Deploy frontend stack last
@@ -722,12 +736,6 @@ jobs:
       - build
       - approve-prod-deployment
       - deploy-networking
-      # - deploy-backend
-      # - deploy-frontend
-     
-      #  &&
-      # (needs.deploy-backend.outputs.stack_status == '' ||
-      # contains(needs.deploy-backend.outputs.stack_status, 'COMPLETE'))
     runs-on: ubuntu-latest
     environment: prod
     if: |
@@ -789,19 +797,41 @@ jobs:
       # Backend deployment
       - name: Deploy backend to Elastic Beanstalk
         if: matrix.component == 'backend'
-        uses: einaregilsson/beanstalk-deploy@v21
-        with:
-          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          application_name: ${{ vars.EB_APPLICATION_NAME || format('findmylunch-{0}', github.event.inputs.environment) }}
-          environment_name: ${{ needs.deploy-backend.outputs.eb_environment_name || secrets.EB_ENVIRONMENT_NAME_PROD }}
-          version_label: "${{ github.event.inputs.deploy_version || format('findmylunch-backend-prod-{0}-{1}', github.run_number, github.run_attempt) }}"
-          region: ${{ vars.AWS_REGION }}
-          deployment_package: artifacts/eb-bundle.zip
-          wait_for_environment_recovery: 600
-          timeout: 900
-          use_existing_version_if_available: false
-          deployment_description: "Production deployment from GitHub Actions workflow run #${{ github.run_number }}"
+        run: |
+          # Set version label
+          VERSION_LABEL="${{ github.event.inputs.deploy_version || format('findmylunch-backend-prod-{0}-{1}', github.run_number, github.run_attempt) }}"
+          APP_NAME="${{ vars.EB_APPLICATION_NAME || 'findmylunch-prod' }}"
+          ENV_NAME="${{ secrets.EB_ENVIRONMENT_NAME_PROD || 'findmylunch-prod' }}"
+          
+          echo "Deploying backend to Elastic Beanstalk..."
+          echo "Application: $APP_NAME"
+          echo "Environment: $ENV_NAME"
+          echo "Version: $VERSION_LABEL"
+          
+          # Upload the bundle to S3
+          BUCKET_NAME="findmylunch-artifacts-prod-${{ vars.AWS_REGION }}"
+          echo "Uploading deployment package to S3 bucket: $BUCKET_NAME"
+          aws s3 cp artifacts/eb-bundle.zip "s3://$BUCKET_NAME/eb-bundle.zip"
+          
+          # Create application version
+          echo "Creating application version: $VERSION_LABEL"
+          aws elasticbeanstalk create-application-version \
+            --application-name "$APP_NAME" \
+            --version-label "$VERSION_LABEL" \
+            --source-bundle S3Bucket="$BUCKET_NAME",S3Key="eb-bundle.zip" \
+            --description "Production deployment from GitHub Actions workflow run #${{ github.run_number }}"
+          
+          # Deploy the new version
+          echo "Updating environment with new version..."
+          aws elasticbeanstalk update-environment \
+            --environment-name "$ENV_NAME" \
+            --version-label "$VERSION_LABEL"
+          
+          # Wait for deployment to complete
+          echo "Waiting for deployment to complete..."
+          aws elasticbeanstalk wait environment-updated \
+            --environment-name "$ENV_NAME" \
+            --version-label "$VERSION_LABEL"
           
       - name: Verify backend deployment
         if: matrix.component == 'backend'
@@ -907,5 +937,5 @@ jobs:
               
             echo "API Gateway integration updated successfully"
           else
-            echo "::warning::Could not update API Gateway integration. Missing API ID or EB URL."
+            echo "::warning::Could not update DNS record. Missing hosted zone ID or API Gateway domain."
           fi
