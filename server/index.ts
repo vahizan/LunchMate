@@ -51,7 +51,7 @@ app.use((req, res, next) => {
   try {
     // In production, get credentials from Secrets Manager
     if (process.env.NODE_ENV === 'prod') {
-      const oxyLabsUsername = await secretsManager.getSecret('OXYLABS_USERNAME', 'OXYLABS_USERNAME');
+      const oxyLabsUsername = 'lunchmate_BbFPS';
       const oxyLabsPassword = await secretsManager.getSecret('OXYLABS_PASSWORD', 'SCRAPE_OXYLABS_PASS');
       
       ScraperService.getInstance({
