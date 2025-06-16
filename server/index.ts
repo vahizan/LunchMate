@@ -9,15 +9,6 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Add health check endpoint for Elastic Beanstalk
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'healthy',
-    environment: process.env.NODE_ENV,
-    timestamp: new Date().toISOString()
-  });
-});
-
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
