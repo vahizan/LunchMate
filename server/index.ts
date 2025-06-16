@@ -110,8 +110,12 @@ app.use((req, res, next) => {
   // doesn't interfere with the other routes
   if (process.env.NODE_ENV !== 'prod') {
     await setupVite(app, server);
-  } else {
-    serveStatic(app);
+  } 
+
+  if(process.env.NODE_ENV === 'prod') {
+      app.get('/', (_, res) => {
+          res.status(200).send('OK');
+      });
   }
 
   const port = process.env.PORT || 3000;

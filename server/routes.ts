@@ -15,7 +15,7 @@ import { registerHealthRoutes } from "./controllers/healthController";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   console.log("Registering all API routes...");
-  
+ 
   // Register all routes from controllers
   registerRestaurantRoutes(app);
   registerUserRoutes(app);
