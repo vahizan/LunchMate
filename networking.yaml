@@ -385,6 +385,11 @@ Resources:
           ToPort: 443
           SourceSecurityGroupId: !Ref ALBSecurityGroup
           Description: Allow HTTPS from ALB
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+          Description: Allow Node.js application port from ALB (required for Elastic Beanstalk)
       Tags:
         - Key: Name
           Value: !Sub ${EnvironmentName}-findmylunch-ec2-sg
