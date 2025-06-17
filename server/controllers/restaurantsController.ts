@@ -176,7 +176,7 @@ export async function getRestaurants(req: Request, res: Response) {
         
         // Calculate travel info if departure time is provided
         if (validatedFilters.departureTime) {
-          console.log(`Calculating travel info with departure time: ${validatedFilters.departureTime}`);
+          // console.log(`Calculating travel info with departure time: ${validatedFilters.departureTime}`);
           
           const travelInfo = await calculateTravelInfo(
             { lat: location.lat, lng: location.lng },

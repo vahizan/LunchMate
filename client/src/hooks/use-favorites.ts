@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { Restaurant } from '@/types';
 
+const API_URL = process.env.API_URL;
+
 export function useFavorites() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -11,7 +13,7 @@ export function useFavorites() {
     queryKey: ['favorites'],
     queryFn: async () => {
       try {
-        const response = await fetch('/api/favorites', {
+        const response = await fetch(API_URL+'/api/favorites', {
           headers: {
             'user-id': localStorage.getItem('userId') || '',
           },
@@ -33,7 +35,7 @@ export function useFavorites() {
   // Add to favorites mutation
   const addToFavoritesMutation = useMutation({
     mutationFn: async (restaurant: Restaurant) => {
-      const response = await fetch('/api/favorites', {
+      const response = await fetch(API_URL+'/api/favorites', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -79,7 +81,7 @@ export function useFavorites() {
   // Remove from favorites mutation
   const removeFromFavoritesMutation = useMutation({
     mutationFn: async (restaurantId: string) => {
-      const response = await fetch(`/api/favorites/restaurant/${restaurantId}`, {
+      const response = await fetch(`${API_URL}/api/favorites/restaurant/${restaurantId}`, {
         method: 'DELETE',
         headers: {
           'user-id': localStorage.getItem('userId') || '',

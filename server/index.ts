@@ -1,21 +1,24 @@
 import express, { Request, Response, NextFunction } from "express";
-import { log, serveStatic, setupVite } from "./vite";
+import { serveStatic, setupVite } from "./vite";
 import { registerRoutes } from "./routes";
 import { scrapingConfig } from "./config/scraper-config";
 import { ScraperService } from "./lib/scraper";
-import dotenv from "dotenv";
-
-// Load environment variables
-dotenv.config();
+import fs from 'fs';
+import 'dotenv/config';
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
+
+  var log = function(entry: any) {
+      fs.appendFileSync('/tmp/findmylunch-api.log', new Date().toISOString() + ' - ' + entry + '\n');
+  };
 
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
@@ -39,6 +42,25 @@ app.use((req, res, next) => {
     }
   });
 
+   if (req.method === 'POST') {
+        var body = '';
+
+        req.on('data', function(chunk) {
+            body += chunk;
+        });
+
+        req.on('end', function() {
+            if (req.url === '/') {
+                log('Received message: ' + body);
+            } else if (req.url = '/scheduled') {
+                log('Received task ' + req.headers['x-aws-sqsd-taskname'] + ' scheduled at ' + req.headers['x-aws-sqsd-scheduled-at']);
+            }
+
+            res.writeHead(200, 'OK', {'Content-Type': 'text/plain'});
+            res.end();
+        });
+    }
+
   next();
 });
 
@@ -48,10 +70,30 @@ app.use((req, res, next) => {
 (async () => {
   // Initialize the ScraperService singleton with credentials from .env
 
-  ScraperService.getInstance({
-  oxyLabsUsername: 'lunchmate_BbFPS',
-  oxyLabsPassword: process.env.SCRAPE_OXYLABS_PASS
-});
+  // Initialize the ScraperService with credentials from Secrets Manager or environment variables
+  const secretsManager = (await import('./lib/secrets-manager')).default;
+  
+  try {
+    // In production, get credentials from Secrets Manager
+    if (process.env.NODE_ENV === 'prod') {
+      const oxyLabsUsername = 'lunchmate_BbFPS';
+      const oxyLabsPassword = await secretsManager.getSecret('OXYLABS_PASSWORD', 'SCRAPE_OXYLABS_PASS');
+      
+      ScraperService.getInstance({
+        oxyLabsUsername,
+        oxyLabsPassword
+      });
+    } else {
+      // In development, use environment variables
+      ScraperService.getInstance({
+        oxyLabsUsername: process.env.OXYLABS_USERNAME || 'lunchmate_BbFPS', // Fallback for local development
+        oxyLabsPassword: process.env.SCRAPE_OXYLABS_PASS
+      });
+    }
+  } catch (error) {
+    console.error('Failed to initialize ScraperService with credentials:', error);
+    throw error;
+  }
 
   const server = await registerRoutes(app);
 
@@ -66,23 +108,18 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
+  if (process.env.NODE_ENV !== 'prod') {
     await setupVite(app, server);
-  } else {
-    serveStatic(app);
+  } 
+
+  if(process.env.NODE_ENV === 'prod') {
+      app.get('/', (_, res) => {
+          res.status(200).send('OK');
+      });
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
-  });
+  const port = process.env.PORT || 8080;
+  server.listen(port);
 
   // Handle graceful shutdown
   const gracefulShutdown = async () => {

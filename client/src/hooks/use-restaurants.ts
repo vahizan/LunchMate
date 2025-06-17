@@ -25,6 +25,7 @@ interface RestaurantIdsResponse {
 }
 
 export function useRestaurants(props?: { limit?: string }) {
+  const API_URL = process.env.API_URL;
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { location, filters, visitHistory } = useAppContext();
@@ -80,6 +81,8 @@ export function useRestaurants(props?: { limit?: string }) {
         excludeCafe: filters.excludeCafe,
         departureTime: filters.departureTime
       } : null
+      // Note: We're not including cursor in the query key to avoid breaking tests
+      // Instead, we'll handle cursor-based pagination in the loadMoreData function
     });
   }, [location, filters]);
 
@@ -183,7 +186,8 @@ export function useRestaurants(props?: { limit?: string }) {
         
         // Make the request
         console.log(`useRestaurants - fetching page with params:`, params.toString());
-        const response = await fetch(`/api/restaurants?${params.toString()}`);
+        console.log(`useRestaurants - current cursor:`, currentCursor);
+        const response = await fetch(`${API_URL}/api/restaurants?${params.toString()}`);
         
         if (!response.ok) {
           throw new Error('Failed to fetch restaurants');
@@ -192,11 +196,21 @@ export function useRestaurants(props?: { limit?: string }) {
         const data: RestaurantsResponse = await response.json();
         console.log(`useRestaurants - received page with ${data.results.length} results`, data);
         
+        console.log(`useRestaurants - received cursor:`, data.cursor);
         setCurrentCursor(data.cursor);
         setHasMore(Boolean(data.cursor));
         
-        // Update local state
-        const updatedResults = [...allRestaurants, ...data.results];
+        // Update local state - filter out duplicates by place_id
+        const newResults = data.results.filter(newRestaurant =>
+          !allRestaurants.some(existingRestaurant =>
+            existingRestaurant.place_id === newRestaurant.place_id
+          )
+        );
+        
+        console.log(`useRestaurants - filtered new results: ${newResults.length} (removed ${data.results.length - newResults.length} duplicates)`);
+        
+        const updatedResults = [...allRestaurants, ...newResults];
+        console.log(`useRestaurants - updating results: previous=${allRestaurants.length}, new=${newResults.length}, total=${updatedResults.length}`);
         setAllRestaurants(updatedResults);
         
         // Update context state
@@ -213,7 +227,17 @@ export function useRestaurants(props?: { limit?: string }) {
       }
     },
     enabled: isFetchData || hasFiltersOrLocationChanged || loadMore || allRestaurants.length === 0,
+    refetchOnWindowFocus: false,
   });
+
+  // Handle loadMore state changes - explicitly refetch when loadMore is true
+  useEffect(() => {
+    if (loadMore && currentCursor) {
+      console.log("Load more triggered with cursor:", currentCursor);
+      // Explicitly refetch to ensure we get the next page with the current cursor
+      query.refetch();
+    }
+  }, [loadMore, currentCursor, query]);
 
   
   // Update prevLocationFilters when query is successful
@@ -257,7 +281,7 @@ export function useRestaurants(props?: { limit?: string }) {
           params.set('cursor', cursor);
         }
         
-        const response = await fetch(`/api/restaurants/ids?${params.toString()}`);
+        const response = await fetch(`${API_URL}/api/restaurants/ids?${params.toString()}`);
         if (!response.ok) {
           throw new Error('Failed to fetch restaurant IDs');
         }
@@ -355,7 +379,7 @@ export function useRestaurants(props?: { limit?: string }) {
       
       // Fetch full details for the selected restaurant
       console.log(`Fetching details for restaurant ID: ${randomId}`);
-      const detailsResponse = await fetch(`/api/restaurants/${randomId}?${restaurantByIdParams}`);
+      const detailsResponse = await fetch(`${API_URL}/api/restaurants/${randomId}?${restaurantByIdParams}`);
       
       if (!detailsResponse.ok) {
         throw new Error('Failed to fetch restaurant details');
@@ -377,7 +401,7 @@ export function useRestaurants(props?: { limit?: string }) {
           console.log("RESTAURANT", restaurant);
 
           
-          const crowdResponse = await fetch(`/api/restaurants/${randomId}/crowd-level?${params.toString()}`);
+          const crowdResponse = await fetch(`${API_URL}/api/restaurants/${randomId}/crowd-level?${params.toString()}`);
           
           if (crowdResponse.ok) {
             const crowdData = await crowdResponse.json();
@@ -418,7 +442,7 @@ export function useRestaurants(props?: { limit?: string }) {
   // Add restaurant to team suggestion
   const addToTeamMutation = useMutation({
     mutationFn: async (restaurant: Restaurant) => {
-      const response = await fetch('/api/team/suggestions', {
+      const response = await fetch(API_URL+'/api/team/suggestions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(restaurant),
@@ -459,8 +483,13 @@ export function useRestaurants(props?: { limit?: string }) {
 
   // Load more data handler
   const loadMoreData = useCallback(() => {
-    setLoadMore(true);
-  }, []);
+    console.log("loadMoreData called, current cursor:", currentCursor);
+    if (currentCursor) {
+      setLoadMore(true);
+    } else {
+      console.warn("No cursor available for loading more data");
+    }
+  }, [currentCursor]);
 
   return {
     data: filteredRestaurants,

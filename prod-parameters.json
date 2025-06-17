@@ -29,11 +29,15 @@
   },
   {
     "ParameterKey": "DomainName",
-    "ParameterValue": "lunchmate.com"
+    "ParameterValue": "findmylunch.net"
   },
   {
     "ParameterKey": "SubDomainPrefix",
     "ParameterValue": "www"
+  },
+  {
+    "ParameterKey": "CreatePrivateHostedZones",
+    "ParameterValue": "false"
   },
   {
     "ParameterKey": "CreateRoute53Records",
@@ -41,11 +45,15 @@
   },
   {
     "ParameterKey": "HostedZoneId",
-    "ParameterValue": "Z1EXAMPLE"
+    "ParameterValue": "Z07994812FJYO57OI646Z"
+  },
+  {
+    "ParameterKey": "CertificateRegion",
+    "ParameterValue": "us-east-1"
   },
   {
     "ParameterKey": "NodeJSVersion",
-    "ParameterValue": "18.17.0"
+    "ParameterValue": "22"
   },
   {
     "ParameterKey": "InstanceType",
@@ -69,7 +77,7 @@
   },
   {
     "ParameterKey": "SSLCertificateARN",
-    "ParameterValue": "arn:aws:acm:us-east-1:123456789012:certificate/example-prod"
+    "ParameterValue": ""
   },
   {
     "ParameterKey": "DBInstanceClass",
@@ -77,11 +85,11 @@
   },
   {
     "ParameterKey": "DBName",
-    "ParameterValue": "lunchmate_prod"
+    "ParameterValue": "findmylunch_prod"
   },
   {
     "ParameterKey": "DBUsername",
-    "ParameterValue": "lunchmate_admin"
+    "ParameterValue": "findmylunch_admin"
   },
   {
     "ParameterKey": "DBAllocatedStorage",
@@ -113,11 +121,11 @@
   },
   {
     "ParameterKey": "GitHubOwner",
-    "ParameterValue": "lunchmate"
+    "ParameterValue": "findmylunch"
   },
   {
     "ParameterKey": "GitHubRepo",
-    "ParameterValue": "lunchmate-app"
+    "ParameterValue": "findmylunch-app"
   },
   {
     "ParameterKey": "GitHubBranch",
@@ -129,7 +137,7 @@
   },
   {
     "ParameterKey": "NotificationEmail",
-    "ParameterValue": "devops@lunchmate.com"
+    "ParameterValue": "devops@findmylunch.com"
   },
   {
     "ParameterKey": "EnableAutomaticDeployment",
@@ -140,7 +148,11 @@
     "ParameterValue": "BUILD_GENERAL1_MEDIUM"
   },
   {
+    "ParameterKey": "SecretsManagerARN",
+    "ParameterValue": "arn:aws:secretsmanager:us-east-1:123456789012:secret:secretsmanager-backend"
+  },
+  {
     "ParameterKey": "ArtifactBucketPrefix",
-    "ParameterValue": "lunchmate-artifacts"
+    "ParameterValue": "findmylunch-artifacts"
   }
 ]

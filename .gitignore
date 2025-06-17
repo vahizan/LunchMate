@@ -1,6 +1,9 @@
 node_modules
 .env*
 .env
+networking-params.json
+frontend-params.json
+backend-params.json
 .vscode/
 .vercel/
 coverage/
